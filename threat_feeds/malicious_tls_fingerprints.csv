@@ -1,0 +1,18 @@
+fingerprint,description,malware_family,confidence
+2236a2c51a6ad07e2a07628e102d8283,Cobalt Strike TLS Beacon,Cobalt Strike,High
+72a589da586844d7f0818ce684948eea,Cobalt Strike HTTPS Beacon,Cobalt Strike,High
+d4fbc5c2b6c9a9f0d1c2e98b34c7d2a1,AsyncRAT TLS Client,AsyncRAT,High
+51f9ce32609ba8196948b2a9c48a365f,AsyncRAT TLS Variant,AsyncRAT,Medium
+88fc00bc9610d079bd5cf44b6ab48a14,AgentTesla TLS Fingerprint,AgentTesla,High
+36c24c4b868cb732f7be209d140d3abb,AgentTesla TLS Legacy Variant,AgentTesla,Medium
+63bd5d5fe2db4e5c75ef9332e1f44e37,RedLine Stealer TLS Beacon,RedLine Stealer,High
+49f0fa2845f4052ff5c7173edf9f5769,RedLine Stealer TLS Variant,RedLine Stealer,Medium
+957eba177775f42a7cae134eb33a73f2,FormBook TLS C2 Communication,FormBook,High
+c9083f8e7845bfd66c5e992f9b85623d,FormBook Obfuscated TLS Handshake,FormBook,High
+f662169fd0cd0ecd363ba2aaf5504b48,Lumma Stealer TLS Client,Lumma Stealer,High
+38387d78427e6f320b22d78027979120,Lumma Stealer TLS Variant,Lumma Stealer,Medium
+f6da1a8aebfda0dd4d1d4180e25b076c,Raccoon Stealer TLS C2,Raccoon Stealer,High
+32702cc893c7c3f78eeb1ec61a59acbd,Raccoon Stealer TLS Variant,Raccoon Stealer,Medium
+b6c71170a83b4573890b2d1c29f29182,Remcos RAT TLS Beacon,Remcos RAT,High
+5559968e4bfa7550d6d7c4ae5735189e,Remcos RAT TLS Variant,Remcos RAT,Medium
+badc0ffee0ddf00ddeadbeef1234567,Generic Malware TLS Beacon,Generic Malware,Medium

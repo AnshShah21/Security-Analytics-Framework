@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOC-VA Framework — VA Module</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --accent:  #6979f8;
+    --accent2: #5c6bc0;
+    --green:   #38a169;
+    --cyan:    #3182ce;
+    --red:     #e53e3e;
+    --orange:  #ed8936;
+    --yellow:  #d69e2e;
+    --purple:  #805ad5;
+    --bg:      #eef0f9;
+    --card:    #ffffff;
+    --border:  #e8eaf0;
+    --text:    #1a1f36;
+    --muted:   #8b95b0;
+    --shadow:  0 2px 12px rgba(105,121,248,.08), 0 1px 3px rgba(0,0,0,.06);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:linear-gradient(135deg,#eef0f9 0%,#e8eaf6 100%); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; }
+  #matrix { display:none; }
+  nav { position:relative; z-index:10; background:#ffffff; border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(105,121,248,.08); padding:0 28px; display:flex; align-items:center; justify-content:space-between; height:58px; }
+  .logo-text { font-family:'Inter',sans-serif; color:var(--text); font-size:13px; font-weight:700; letter-spacing:0; }
+  .logo-sub  { color:var(--muted); font-size:11px; letter-spacing:1px; }
+  .nav-links { display:flex; gap:6px; }
+  .nav-btn   { padding:7px 16px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:'Inter',sans-serif; font-size:13px; font-weight:500; cursor:pointer; text-decoration:none; transition:all .2s; display:inline-block; }
+  .nav-btn:hover   { border-color:var(--accent); color:var(--accent); background:rgba(105,121,248,.06); }
+  .nav-btn.active  { border-color:var(--accent); color:var(--accent); background:rgba(105,121,248,.08); font-weight:600; }
+
+  main { position:relative; z-index:5; max-width:1300px; margin:0 auto; padding:24px; }
+  h1   { font-size:20px; font-weight:700; color:var(--text); letter-spacing:0; margin-bottom:4px; }
+  .sub { color:var(--muted); font-size:12px; letter-spacing:1px; margin-bottom:24px; }
+
+  .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px; }
+  .stat { background:#ffffff; border-radius:8px; padding:14px 16px; border:1px solid; }
+  .stat-val  { font-size:26px; font-weight:800; line-height:1; }
+  .stat-lab  { font-size:12px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-top:4px; }
+
+  .tabs { display:flex; gap:4px; margin-bottom:18px; background:rgba(255,255,255,.7); border-radius:8px; padding:4px; }
+  .tab  { flex:1; padding:10px; border-radius:8px; border:none; background:transparent; color:var(--muted); font-family:'Inter',sans-serif; font-size:13px; font-weight:500; cursor:pointer; text-align:center; transition:all .2s; }
+  .tab.active { background:#ffffff; color:var(--accent); font-weight:600; box-shadow:0 2px 8px rgba(105,121,248,.15); }
+
+  .panel { display:none; }
+  .panel.active { display:block; }
+
+  .scan-box { background:#ffffff; border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:18px; }
+  .scan-box label { color:var(--muted); font-size:12px; letter-spacing:1px; display:block; margin-bottom:6px; }
+  .scan-box input[type=text] { width:100%; background:#f7f8fc; border:1px solid #0a3a4a; border-radius:4px; padding:10px 14px; color:var(--green); font-family:'Inter',sans-serif; font-size:13px; outline:none; margin-bottom:12px; }
+  .flags { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .flags label { display:flex; align-items:center; gap:5px; cursor:pointer; font-size:12px; color:var(--muted); }
+  .btn-scan { padding:10px 28px; background:var(--accent); border:none; border-radius:8px; color:#fff; font-family:'Inter',sans-serif; font-size:13px; font-weight:600; cursor:pointer; letter-spacing:0; transition:all .2s; box-shadow:0 2px 8px rgba(105,121,248,.3); }
+  .btn-scan:hover { background:#5a6be0; box-shadow:0 4px 12px rgba(105,121,248,.4); }
+  .btn-corr { background:var(--cyan); border:none; color:#fff; box-shadow:0 2px 8px rgba(49,130,206,.3); }
+  .btn-corr:hover { background:#2b6cb0; }
+
+  .progress-bar { background:#e8eaf0; border-radius:4px; height:6px; margin:10px 0; overflow:hidden; }
+  .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),#a78bfa); transition:width .35s ease; }
+  .progress-label { color:var(--muted); font-size:12px; font-weight:500; }
+
+  table { width:100%; border-collapse:collapse; }
+  thead th { background:#f7f8fc; color:var(--muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); }
+  tbody tr { border-bottom:1px solid #f0f2f8; transition:background .15s; }
+  tbody tr:hover { background:rgba(105,121,248,.04); }
+  tbody td { padding:11px 14px; font-size:13px; vertical-align:middle; color:var(--text); }
+
+  .badge { display:inline-block; padding:4px 11px; border-radius:3px; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; border:1px solid; }
+  .badge-Critical { color:#c53030; border-color:rgba(197,48,48,.25); background:rgba(229,62,62,.08); }
+  .badge-High     { color:#c05621; border-color:rgba(192,86,33,.25); background:rgba(237,137,54,.08); }
+  .badge-Medium   { color:#b7791f; border-color:rgba(183,121,31,.25); background:rgba(214,158,46,.08); }
+  .badge-Low      { color:#276749; border-color:rgba(39,103,73,.25); background:rgba(56,161,105,.08); }
+  .badge-Info     { color:#718096; border-color:rgba(113,128,150,.25); background:rgba(113,128,150,.08); }
+  .badge-Malicious { color:#c53030; border-color:rgba(197,48,48,.25); background:rgba(229,62,62,.08); }
+  .badge-Unknown  { color:#718096; border-color:rgba(113,128,150,.25); background:rgba(113,128,150,.08); }
+
+  .corr-card { background:#ffffff; border-radius:8px; padding:16px; margin-bottom:10px; border-left:4px solid; }
+  .corr-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0; }
+  .corr-box  { border-radius:10px; padding:8px 10px; background:#f7f8fc; }
+  .ir-action { border-radius:4px; padding:10px 14px; font-size:13px; }
+
+  .chart-row { display:grid; grid-template-columns:200px 1fr; gap:14px; margin-bottom:20px; }
+  .chart-box { background:#ffffff; border:1px solid var(--border); border-radius:8px; padding:12px 14px; height:180px; position:relative; }
+  .chart-title { color:var(--muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-weight:700; }
+
+  footer { position:relative; z-index:5; border-top:1px solid #061420; padding:12px 28px; background:#f0f2fb; display:flex; justify-content:space-between; font-size:9px; color:var(--muted); letter-spacing:1px; margin-top:20px; }
+  .hidden { display:none; }
+
+  /* ── Kill Chain Strip ────────────────────────────────────────── */
+  .kc-strip { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin:14px 0 4px; }
+  .kc-cell  { border-radius:6px; padding:10px 6px; text-align:center; border:1px solid rgba(10,42,53,.8); background:#f7f8fc; }
+  .kc-cell.hit  { border-color:rgba(229,62,62,.3); background:rgba(229,62,62,.06); }
+  .kc-cell.warn { border-color:rgba(237,137,54,.3); background:rgba(237,137,54,.06); }
+  .kc-num  { font-size:10px; color:var(--muted); letter-spacing:1px; margin-bottom:3px; }
+  .kc-name { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; line-height:1.3; color:var(--muted); }
+  .kc-cell.hit  .kc-name { color:var(--orange); }
+  .kc-cell.warn .kc-name { color:var(--yellow); }
+  .kc-cnt  { font-size:18px; font-weight:700; margin-top:4px; color:var(--muted); }
+  .kc-cell.hit  .kc-cnt  { color:var(--red); }
+  .kc-cell.warn .kc-cnt  { color:var(--yellow); }
+  .kc-detail-txt { font-size:10px; color:var(--muted); margin-top:3px; line-height:1.4; }
+
+  /* ── Kill Chain inline tag ───────────────────────────────────── */
+  .kc-tag { display:inline-block; padding:4px 10px; border-radius:2px; font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; border:1px solid; }
+  .kc-Reconnaissance      { color:#3182ce; border-color:rgba(49,130,206,.25); background:rgba(49,130,206,.07); }
+  .kc-Exploitation        { color:#ed8936; border-color:rgba(237,137,54,.3); background:rgba(237,137,54,.07); }
+  .kc-Delivery            { color:#d69e2e; border-color:rgba(214,158,46,.3); background:rgba(214,158,46,.07); }
+  .kc-Installation        { color:#805ad5; border-color:rgba(128,90,213,.3); background:rgba(128,90,213,.07); }
+  .kc-CommandControl      { color:#e53e3e; border-color:rgba(229,62,62,.3); background:rgba(229,62,62,.07); }
+  .kc-ActionsOnObjectives { color:#e53e3e; border-color:rgba(229,62,62,.3); background:rgba(229,62,62,.07); }
+  .kc-default             { color:#636366; border-color:rgba(99,99,102,.3); background:transparent; }
+
+  /* ── Expandable detail rows ──────────────────────────────────── */
+  .det-row td { padding:0 !important; }
+  .det-inner  { padding:14px 16px; background:#fafbfe; border-top:1px solid rgba(255,214,10,.1); display:flex; flex-direction:column; gap:10px; }
+  .det-grid   { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .det-box    { background:#ffffff; border:1px solid rgba(10,42,53,.8); border-radius:6px; padding:11px 13px; }
+  .det-label  { color:var(--muted); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; font-weight:600; }
+  .det-row-r  { display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid #f0f2f8; }
+  .det-row-r:last-child { border-bottom:none; }
+  .det-key    { color:var(--muted); font-size:12px; }
+  .det-val    { font-size:12px; font-weight:700; }
+  .ref-pill   { display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:600; background:rgba(105,121,248,.08); border:1px solid rgba(105,121,248,.2); color:var(--accent); letter-spacing:.5px; margin:1px; }
+
+  /* ── Remediation plan ────────────────────────────────────────── */
+  .remed-wrap  { margin-top:12px; }
+  .remed-title { color:var(--muted); font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; font-weight:700; }
+  .remed-item  { display:flex; gap:10px; align-items:flex-start; padding:8px 11px; border-radius:5px; margin-bottom:5px; border:1px solid; }
+  .rp1 { background:rgba(229,62,62,.04);  border-left:3px solid var(--red);   border-color:rgba(229,62,62,.15); }
+  .rp2 { background:rgba(237,137,54,.04); border-left:3px solid var(--orange); border-color:rgba(237,137,54,.15); }
+  .rp3 { background:rgba(214,158,46,.04); border-left:3px solid var(--yellow); border-color:rgba(214,158,46,.15); }
+  .rp4 { background:rgba(105,121,248,.03); border-left:3px solid #c3caf8; border-color:rgba(105,121,248,.1); }
+  .rp-num { font-size:13px; font-weight:700; flex-shrink:0; width:18px; }
+  .rp-action   { font-size:13px; color:var(--text); line-height:1.6; margin-bottom:4px; font-weight:500; }
+  .rp-meta     { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .rp-cat  { font-size:10px; font-weight:700; padding:2px 7px; border-radius:2px; letter-spacing:1px; text-transform:uppercase; }
+  .cat-Patch   { color:var(--orange); background:rgba(255,107,53,.1); border:1px solid rgba(255,107,53,.25); }
+  .cat-Config  { color:var(--yellow); background:rgba(255,214,10,.1); border:1px solid rgba(255,214,10,.25); }
+  .cat-Network { color:var(--cyan); background:rgba(0,204,255,.1); border:1px solid rgba(0,204,255,.25); }
+  .cat-Monitor { color:var(--green); background:rgba(48,209,88,.1); border:1px solid rgba(48,209,88,.25); }
+  .cat-Process { color:var(--purple); background:rgba(180,100,255,.1); border:1px solid rgba(180,100,255,.25); }
+  .rp-effort   { font-size:11px; color:var(--muted); }
+  .rp-deadline { font-size:11px; padding:3px 8px; border-radius:2px; background:rgba(255,45,85,.07); border:1px solid rgba(255,45,85,.18); color:var(--orange); }
+  .rp-ref      { font-size:11px; color:var(--cyan); background:rgba(0,204,255,.07); border:1px solid rgba(0,204,255,.18); padding:1px 6px; border-radius:2px; }
+</style>
+</head>
+<body>
+<canvas id="matrix"></canvas>
+<nav>
+  <div>
+    <div class="logo-text">🔬 VA MODULE</div>
+    <div class="logo-sub">NMAP · NUCLEI · SOC×VA RISK CORRELATION</div>
+  </div>
+  <div class="nav-links">
+    <a href="/" class="nav-btn">🕵️ SOC MODULE</a>
+    <a href="/va" class="nav-btn active">🔬 VA MODULE</a>
+    <a href="/dashboard" class="nav-btn">📊 SOC DASHBOARD</a>
+    <a href="/live" class="nav-btn" style="border-color:rgba(229,62,62,.45);color:#ff7a45;">🔴 LIVE TRAFFIC</a>
+  </div>
+</nav>
+
+<main>
+  <h1>🔬 VA Security Assessment Module</h1>
+  <div class="sub">Nmap Vulnerability Scan → Nuclei CVE Detection → SOC×VA Risk Correlation</div>
+
+  <!-- Stats -->
+  <div class="stat-grid">
+    <div class="stat" style="border-color:var(--red)44;">
+      <div class="stat-val" style="color:var(--red);">{{ sev_counts.Critical }}</div>
+      <div class="stat-lab">Critical CVEs</div>
+    </div>
+    <div class="stat" style="border-color:var(--orange)44;">
+      <div class="stat-val" style="color:var(--orange);">{{ sev_counts.High }}</div>
+      <div class="stat-lab">High Findings</div>
+    </div>
+    <div class="stat" style="border-color:var(--yellow)44;">
+      <div class="stat-val" style="color:var(--yellow);">{{ sev_counts.Medium }}</div>
+      <div class="stat-lab">Medium Risk</div>
+    </div>
+    <div class="stat" style="border-color:var(--cyan)44;">
+      <div class="stat-val" style="color:var(--cyan);">{{ nmap_count }}</div>
+      <div class="stat-lab">Nmap Findings</div>
+    </div>
+    <div class="stat" style="border-color:var(--green)44;">
+      <div class="stat-val" style="color:var(--green);">{{ corr_count }}</div>
+      <div class="stat-lab">Correlated Hosts</div>
+    </div>
+  </div>
+
+  <!-- Charts (shown when data exists) -->
+  {% if nmap_count > 0 or nuclei_count > 0 %}
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-title">Severity Distribution</div>
+      <canvas id="sevChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">Findings by Source</div>
+      <canvas id="srcChart"></canvas>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('nmap',this)">🔍 NMAP VULN SCAN</button>
+    <button class="tab" onclick="switchTab('nuclei',this)">☢️ NUCLEI CVE SCAN</button>
+    <button class="tab" onclick="switchTab('correlation',this)">🔗 RISK CORRELATION</button>
+  </div>
+
+  <!-- ── NMAP PANEL ── -->
+  <div class="panel active" id="panel-nmap">
+    <div class="scan-box">
+      <label>TARGET (IP / CIDR / Hostname)</label>
+      <input type="text" id="nmap-target" value="192.168.1.0/24" placeholder="e.g. 192.168.1.0/24">
+      <div class="flags">
+        <label><input type="checkbox" id="f_sv" checked> -sV (Version)</label>
+        <label><input type="checkbox" id="f_sc" checked> -sC (Scripts)</label>
+        <label><input type="checkbox" id="f_pn" checked> -Pn (Skip Ping) ⭐ Windows</label>
+        <label><input type="checkbox" id="f_os"> -O (OS Detect)</label>
+        <label><input type="checkbox" id="f_all"> -p- (All Ports)</label>
+      </div>
+      <button class="btn-scan" onclick="runNmap()">▶ LAUNCH NMAP SCAN</button>
+    </div>
+
+    <div id="nmap-progress" class="hidden" style="margin-bottom:14px;">
+      <div class="progress-label" id="nmap-step">Initializing...</div>
+      <div class="progress-bar"><div class="progress-fill" id="nmap-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="nmap-results">
+      {% if nmap_findings %}
+      <div style="background:#ffffff;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <table>
+          <thead><tr>
+            <th>Host</th><th>Port</th><th>Service</th><th>Version</th>
+            <th>CVE</th><th>Severity</th><th>Kill Chain Stage</th><th>Risk Flag</th>
+          </tr></thead>
+          <tbody>
+          {% for f in nmap_findings %}
+            <tr onclick="toggleNmapRow(this,{{ loop.index0 }})" style="cursor:pointer;"
+                class="{% if loop.index0 == 0 %}{% endif %}">
+              <td style="color:var(--cyan);">{{ f.host }}</td>
+              <td style="color:var(--muted);">{{ f.port }}/{{ f.protocol }}</td>
+              <td style="color:var(--text);">{{ f.service }}</td>
+              <td style="color:var(--muted);font-size:13px;">{{ f.version[:30] if f.version else 'unknown' }}</td>
+              <td>
+                {% if f.cves %}
+                  {% for c in f.cves[:1] %}
+                  <span style="color:var(--yellow);font-size:13px;">{{ c.cve }}</span><br>
+                  <span style="color:var(--muted);font-size:13px;">{{ c.desc[:45] }}</span>
+                  {% endfor %}
+                  {% if f.cves|length > 1 %}<span style="color:var(--muted);font-size:13px;"> +{{ f.cves|length - 1 }} more</span>{% endif %}
+                {% else %}
+                  <span style="color:var(--muted);font-size:13px;">No CVE</span>
+                {% endif %}
+              </td>
+              <td><span class="badge badge-{{ f.severity | default('Info') }}">{{ f.severity | default('Info') }}</span></td>
+              <td>
+                {%- set kc = f.kill_chain_stage | default('Exploitation') -%}
+                <span class="kc-tag kc-{{ kc | replace(' & ','') | replace(' ','') }}">{{ kc }}</span>
+              </td>
+              <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px;" title="{{ f.risk_flag }}">
+                {{ f.risk_flag | default('—') }}
+              </td>
+            </tr>
+            <!-- EXPANDABLE DETAIL ROW -->
+            <tr class="det-row hidden" id="nmap-det-{{ loop.index0 }}">
+              <td colspan="8">
+                <div class="det-inner">
+                  <div class="det-grid">
+                    <!-- CVE Details -->
+                    <div class="det-box">
+                      <div class="det-label">CVE Details</div>
+                      {% if f.cves %}
+                        {% for c in f.cves %}
+                        <div class="det-row-r">
+                          <span class="ref-pill">{{ c.cve }}</span>
+                          <span class="badge badge-{{ c.severity }}" style="font-size:13px;">{{ c.severity }}</span>
+                        </div>
+                        <div style="color:#90b8c8;font-size:13px;padding:2px 0 5px;border-bottom:1px solid rgba(232,234,240,.8);margin-bottom:2px;">{{ c.desc }}</div>
+                        {% endfor %}
+                      {% else %}
+                        <div style="color:var(--muted);font-size:13px;padding:4px 0;">No CVEs matched — verify version manually</div>
+                      {% endif %}
+                      {% if f.nse_findings %}
+                      <div style="margin-top:8px;">
+                        <div class="det-label" style="margin-bottom:4px;">NSE Vuln Script Output</div>
+                        {% for nse in f.nse_findings %}
+                        <div style="background:rgba(255,45,85,.06);border:1px solid rgba(255,45,85,.18);border-radius:4px;padding:7px;margin-bottom:4px;">
+                          <div style="color:var(--orange);font-size:13px;font-weight:700;margin-bottom:3px;">{{ nse.script }}</div>
+                          <div style="color:var(--muted);font-size:13px;white-space:pre-wrap;line-height:1.5;">{{ nse.output[:280] }}</div>
+                        </div>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                    </div>
+                    <!-- Remediation Steps -->
+                    <div class="det-box">
+                      <div class="det-label">Remediation Steps</div>
+                      {% if f.remediation_hints %}
+                        {% for r in f.remediation_hints %}
+                        <div class="remed-item rp{{ loop.index if loop.index <= 4 else 4 }}">
+                          <div class="rp-num" style="color:{% if r.priority=='Critical' %}#ff2d55{% elif r.priority=='High' %}#ff6b35{% elif r.priority=='Medium' %}#ffd60a{% else %}#30d158{% endif %};">
+                            {% if r.priority=='Critical' %}!{% elif r.priority=='High' %}2{% elif r.priority=='Medium' %}3{% else %}4{% endif %}
+                          </div>
+                          <div>
+                            <div class="rp-action">{{ r.action }}</div>
+                            <div class="rp-meta">
+                              <span class="rp-ref">{{ r.reference | default('') }}</span>
+                              <span class="rp-effort">Effort: {{ r.effort | default('Medium') }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {% endfor %}
+                      {% else %}
+                        <div style="color:var(--muted);font-size:13px;">Restrict port access at firewall. Review service hardening guide.</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <!-- Port info + kill chain explanation -->
+                  <div class="det-grid">
+                    <div class="det-box">
+                      <div class="det-label">Port Details</div>
+                      <div class="det-row-r"><span class="det-key">Port / Proto</span><span class="det-val" style="color:var(--cyan);">{{ f.port }}/{{ f.protocol }}</span></div>
+                      <div class="det-row-r"><span class="det-key">Service</span><span class="det-val">{{ f.service }}</span></div>
+                      <div class="det-row-r"><span class="det-key">Version</span><span class="det-val" style="color:var(--muted);">{{ f.version | default('unknown') }}</span></div>
+                      <div class="det-row-r"><span class="det-key">OS</span><span class="det-val" style="color:var(--muted);">{{ f.os | default('Unknown') }}</span></div>
+                      {% if f.risk_flag %}
+                      <div style="margin-top:8px;color:var(--yellow);font-size:13px;line-height:1.6;padding:6px;background:rgba(255,214,10,.04);border-radius:3px;border:1px solid rgba(255,214,10,.12);">⚠ {{ f.risk_flag }}</div>
+                      {% endif %}
+                    </div>
+                    <div class="det-box">
+                      <div class="det-label">Kill Chain Stage</div>
+                      {%- set kc2 = f.kill_chain_stage | default('Exploitation') -%}
+                      <div style="margin-bottom:8px;"><span class="kc-tag kc-{{ kc2 | replace(' & ','') | replace(' ','') }}">{{ kc2 }}</span></div>
+                      <div style="color:var(--muted);font-size:13px;line-height:1.7;">
+                        {% if kc2 == 'Reconnaissance' %}Exposed service metadata aids attacker information gathering before exploitation.
+                        {% elif kc2 == 'Exploitation' %}This service/version could allow initial compromise if exploited via known CVE or misconfiguration.
+                        {% elif kc2 == 'Delivery' %}Protocol used to deliver malicious payloads or phishing content to victims.
+                        {% elif kc2 == 'Installation' %}May allow persistent access or backdoor installation on the host.
+                        {% elif kc2 == 'Command & Control' %}Potential channel for attacker C2 communication after compromise.
+                        {% else %}Post-exploitation target — data access, credential harvest, or lateral movement vector.{% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:40px;color:var(--muted);">No Nmap results yet. Launch a scan above.<br>
+        <span style="font-size:13px;color:var(--muted);margin-top:6px;display:block;">⭐ Enable -Pn if scanning a Windows host — Windows Firewall blocks ICMP ping by default, causing Nmap to report host as down.</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── NUCLEI PANEL ── -->
+  <div class="panel" id="panel-nuclei">
+    <div class="scan-box">
+      <label>TARGET URL / IP</label>
+      <input type="text" id="nuclei-target" value="http://192.168.1.1" placeholder="e.g. http://192.168.1.1">
+      <div class="flags">
+        <label><input type="checkbox" id="t_cve" checked> CVEs (7,200+)</label>
+        <label><input type="checkbox" id="t_login" checked> Default-Login</label>
+        <label><input type="checkbox" id="t_panel" checked> Exposed-Panels</label>
+        <label><input type="checkbox" id="t_misc" checked> Misconfigs</label>
+        <label><input type="checkbox" id="t_ssl" checked> SSL/TLS</label>
+        <label><input type="checkbox" id="t_net" checked> Network</label>
+      </div>
+      <button class="btn-scan" onclick="runNuclei()">▶ LAUNCH NUCLEI SCAN</button>
+    </div>
+
+    <div id="nuclei-progress" class="hidden" style="margin-bottom:14px;">
+      <div class="progress-label" id="nuclei-step">Loading templates...</div>
+      <div class="progress-bar"><div class="progress-fill" id="nuclei-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="nuclei-results">
+      {% if nuclei_findings %}
+      <div style="background:#ffffff;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <table>
+          <thead><tr><th>Template</th><th>Finding</th><th>Host</th><th>MITRE</th><th>Kill Chain</th><th>Tags</th><th>Severity</th></tr></thead>
+          <tbody>
+          {% for f in nuclei_findings %}
+          <tr onclick="toggleNucleiRow(this,{{ loop.index0 }})" style="cursor:pointer;">
+            <td style="color:var(--yellow);font-size:13px;">{{ f.template_id }}</td>
+            <td><div style="color:var(--text);font-size:13px;">{{ f.name }}</div>
+              <div style="color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;" title="{{ f.matched_at }}">{{ f.matched_at }}</div></td>
+            <td style="color:var(--cyan);font-size:13px;">{{ f.host[:30] }}</td>
+            <td style="color:var(--yellow);font-size:13px;">{{ f.mitre }}</td>
+            <td>
+              {%- set kc = f.kill_chain_stage | default('Exploitation') -%}
+              <span class="kc-tag kc-{{ kc | replace(' & ','') | replace(' ','') }}" style="font-size:8px;">{{ kc }}</span>
+            </td>
+            <td>{% for t in f.tags[:2] %}<span style="background:rgba(0,204,255,.08);color:var(--cyan);font-size:8px;padding:1px 5px;border-radius:2px;margin-right:2px;">{{ t }}</span>{% endfor %}</td>
+            <td><span class="badge badge-{{ f.severity }}">{{ f.severity }}</span></td>
+          </tr>
+          <!-- EXPANDABLE DETAIL ROW -->
+          <tr class="det-row hidden" id="nuclei-det-{{ loop.index0 }}">
+            <td colspan="7">
+              <div class="det-inner">
+                <div class="det-grid">
+                  <div class="det-box">
+                    <div class="det-label">Finding Details</div>
+                    <div class="det-row-r"><span class="det-key">Template</span><span class="det-val" style="color:var(--yellow);font-size:13px;">{{ f.template_id }}</span></div>
+                    <div class="det-row-r"><span class="det-key">Matched At</span><span class="det-val" style="color:var(--cyan);font-size:13px;word-break:break-all;">{{ f.matched_at | default('—') }}</span></div>
+                    <div class="det-row-r"><span class="det-key">MITRE</span><span class="ref-pill">{{ f.mitre | default('T1190') }}</span></div>
+                    <div class="det-row-r"><span class="det-key">Kill Chain</span>
+                      {%- set kc2 = f.kill_chain_stage | default('Exploitation') -%}
+                      <span class="kc-tag kc-{{ kc2 | replace(' & ','') | replace(' ','') }}" style="font-size:8px;">{{ kc2 }}</span>
+                    </div>
+                    {% if f.cves %}
+                    <div style="margin-top:6px;">
+                      {% for c in f.cves %}<span class="ref-pill">{{ c }}</span>{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if f.description %}
+                    <div style="color:var(--muted);font-size:13px;margin-top:8px;line-height:1.6;padding:6px;background:rgba(0,204,255,.03);border-radius:4px;border:1px solid rgba(0,204,255,.08);">{{ f.description[:280] }}</div>
+                    {% endif %}
+                    {% if f.extracted %}
+                    <div style="margin-top:7px;"><div class="det-label" style="margin-bottom:3px;">Extracted</div>
+                      {% for e in f.extracted[:4] %}<div style="color:var(--yellow);font-size:13px;">• {{ e }}</div>{% endfor %}
+                    </div>
+                    {% endif %}
+                  </div>
+                  <div class="det-box">
+                    <div class="det-label">Remediation Steps</div>
+                    {% if f.remediation_hints %}
+                      {% for r in f.remediation_hints %}
+                      <div class="remed-item rp{{ loop.index if loop.index <= 4 else 4 }}">
+                        <div class="rp-num" style="color:{% if r.priority in ['Critical','critical'] %}#ff2d55{% elif r.priority in ['High','high'] %}#ff6b35{% elif r.priority in ['Medium','medium'] %}#ffd60a{% else %}#30d158{% endif %};">•</div>
+                        <div>
+                          <div class="rp-action">{{ r.action }}</div>
+                          <div class="rp-meta"><span class="rp-effort">Effort: {{ r.effort | default('Medium') }}</span></div>
+                        </div>
+                      </div>
+                      {% endfor %}
+                    {% else %}
+                      <div style="color:var(--muted);font-size:13px;">Apply vendor advisory patch. Review and harden configuration.</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:40px;color:var(--muted);">No Nuclei results yet. Launch a scan above.<br>
+        <span style="font-size:13px;color:var(--muted);margin-top:6px;display:block;">⭐ Misconfigs + Technologies + Exposures find the most results. All severity levels (info→critical) are included.</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── CORRELATION PANEL ── -->
+  <div class="panel" id="panel-correlation">
+    <div class="scan-box" style="text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">⚡</div>
+      <div style="color:var(--cyan);font-weight:700;font-size:14px;letter-spacing:1px;">SOC × VA RISK CORRELATION ENGINE</div>
+      <div style="color:var(--muted);font-size:13px;margin:8px 0 20px;">Correlates active SOC incidents with VA vulnerabilities by host IP to produce combined risk scores and prioritized IR actions.</div>
+      <button class="btn-scan btn-corr" onclick="runCorrelation()">▶ RUN RISK CORRELATION</button>
+    </div>
+
+    <div id="corr-progress" class="hidden" style="margin-bottom:14px;">
+      <div class="progress-label" id="corr-step">Importing SOC alerts...</div>
+      <div class="progress-bar"><div class="progress-fill" id="corr-bar" style="width:0%;background:linear-gradient(90deg,#00ccff,#00ff9d);"></div></div>
+    </div>
+
+    <div id="corr-results">
+      {% if correlations %}
+        {% for r in correlations %}
+        <div class="corr-card" style="border-left-color:{% if r.combined_risk=='Critical' %}#ff2d55{% elif r.combined_risk=='High' %}#ff6b35{% elif r.combined_risk=='Medium' %}#ffd60a{% else %}#30d158{% endif %};">
+
+          <!-- Header -->
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div>
+              <div style="color:var(--text);font-weight:700;font-size:14px;">{{ r.host }}{% if r.domain %} <span style="color:var(--muted);font-size:13px;font-weight:400;">— {{ r.domain }}</span>{% endif %}</div>
+              <div style="color:var(--muted);font-size:13px;margin-top:2px;">Score: {{ r.combined_score }}/100 &nbsp;|&nbsp; Kill Chain Depth: {{ r.kill_chain_depth }}/7 &nbsp;|&nbsp; {{ r.remediation_count }} remediations</div>
+            </div>
+            <span class="badge badge-{{ r.combined_risk }}">{{ r.combined_risk }}</span>
+          </div>
+
+          <!-- IR Action Banner -->
+          <div class="ir-action" style="background:rgba(0,255,157,.05);border:1px solid rgba(0,255,157,.15);margin-bottom:12px;">
+            <span style="color:var(--green);font-size:13px;letter-spacing:1px;">⚡ IR ACTION: </span>
+            <span style="color:var(--text);font-size:13px;">{{ r.ir_action }}</span>
+          </div>
+
+          <!-- Kill Chain Visualizer -->
+          <div style="color:var(--muted);font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;font-weight:700;">CYBER KILL CHAIN — {{ r.kill_chain_depth }}/7 Stages Hit</div>
+          <div class="kc-strip">
+            {% for stage in r.kill_chain %}
+            <div class="kc-cell {% if stage.hit and stage.count >= 3 %}hit{% elif stage.hit %}warn{% endif %}">
+              <div class="kc-num">{{ loop.index }}</div>
+              <div class="kc-name">{{ stage.stage | replace('Command & Control','C2') | replace('Actions on Objectives','Act. on Obj.') }}</div>
+              <div class="kc-cnt">{{ stage.count if stage.count else '—' }}</div>
+              {% if stage.details %}
+              <div class="kc-detail-txt">{% for d in stage.details[:2] %}• {{ d[:28] }}<br>{% endfor %}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- SOC + VA Summary -->
+          <div class="corr-grid" style="margin-top:12px;">
+            <div class="corr-box" style="background:rgba(255,45,85,.07);">
+              <div style="color:var(--red);font-size:13px;letter-spacing:1px;margin-bottom:4px;">SOC ALERTS ({{ r.soc_alerts }})</div>
+              {% for a in r.soc_summary %}
+              <div style="color:var(--text);font-size:13px;margin-bottom:3px;">
+                <span style="color:var(--yellow);font-size:13px;">{{ a.mitre | default('') }}</span>
+                {% if a.mitre %}&nbsp;{% endif %}{{ (a.reason or '')[:55] }}…
+              </div>
+              {% endfor %}
+              {% if not r.soc_summary %}<div style="color:var(--muted);font-size:13px;">No active SOC alerts</div>{% endif %}
+            </div>
+            <div class="corr-box" style="background:rgba(255,107,53,.07);">
+              <div style="color:var(--orange);font-size:13px;letter-spacing:1px;margin-bottom:4px;">VA FINDINGS ({{ r.vapt_findings }})</div>
+              {% for v in r.vapt_summary %}
+              <div style="color:var(--text);font-size:13px;margin-bottom:3px;">
+                {{ v.name[:45] }} — <span class="badge badge-{{ v.severity }}" style="font-size:8px;">{{ v.severity }}</span>
+                &nbsp;<span class="kc-tag kc-{{ (v.kill_chain_stage | default('Exploitation')) | replace(' & ','') | replace(' ','') }}" style="font-size:8px;">{{ v.kill_chain_stage | default('Exploitation') }}</span>
+              </div>
+              {% endfor %}
+              {% if not r.vapt_summary %}<div style="color:var(--muted);font-size:13px;">No VA findings for this host</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- Score Breakdown + CVEs + MITRE -->
+          <div class="corr-grid" style="margin-top:10px;">
+            <div class="corr-box" style="background:rgba(0,10,18,.7);border:1px solid rgba(10,42,53,.5);">
+              <div style="color:var(--muted);font-size:13px;letter-spacing:1px;margin-bottom:6px;font-weight:700;">SCORE BREAKDOWN</div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;"><span style="color:var(--muted);">SOC</span><span style="color:var(--orange);">{{ r.soc_score }}</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;"><span style="color:var(--muted);">VA</span><span style="color:var(--yellow);">{{ r.vapt_score }}</span></div>
+              {% if r.correlation_boost %}<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0;"><span style="color:var(--muted);">Correlation Boost</span><span style="color:var(--red);">+{{ r.correlation_boost }}</span></div>{% endif %}
+              <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-top:1px solid rgba(10,42,53,.5);margin-top:3px;"><span style="color:var(--muted);">FINAL</span><span style="font-family:'Inter',sans-serif;font-size:14px;font-weight:900;color:{% if r.combined_score >= 85 %}#ff2d55{% elif r.combined_score >= 65 %}#ff6b35{% elif r.combined_score >= 40 %}#ffd60a{% else %}#30d158{% endif %};">{{ r.combined_score }}/100</span></div>
+            </div>
+            <div class="corr-box" style="background:rgba(0,10,18,.7);border:1px solid rgba(10,42,53,.5);">
+              <div style="color:var(--muted);font-size:13px;letter-spacing:1px;margin-bottom:6px;font-weight:700;">TOP CVEs &amp; MITRE</div>
+              {% if r.top_cves %}{% for cve in r.top_cves[:4] %}<span class="ref-pill">{{ cve }}</span>{% endfor %}{% endif %}
+              {% if r.mitre %}<div style="margin-top:6px;">{% for t in r.mitre[:4] %}<span class="ref-pill" style="color:var(--yellow);border-color:rgba(255,214,10,.25);background:rgba(255,214,10,.05);">{{ t }}</span>{% endfor %}</div>{% endif %}
+              {% if not r.top_cves and not r.mitre %}<div style="color:var(--muted);font-size:13px;">No CVE/MITRE data</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- Full Remediation Plan -->
+          {% if r.remediation_plan %}
+          <div class="remed-wrap">
+            <div class="remed-title">📋 REMEDIATION PLAN — {{ r.remediation_count }} actions</div>
+            {% for item in r.remediation_plan %}
+            <div class="remed-item rp{{ item.priority }}">
+              <div class="rp-num" style="color:{% if item.priority==1 %}#ff2d55{% elif item.priority==2 %}#ff6b35{% elif item.priority==3 %}#ffd60a{% else %}#636366{% endif %};">P{{ item.priority }}</div>
+              <div style="flex:1;">
+                <div class="rp-action">{{ item.action }}</div>
+                <div class="rp-meta">
+                  <span class="rp-cat cat-{{ item.category | default('Config') }}">{{ item.category | default('Config') }}</span>
+                  <span class="rp-effort">Effort: {{ item.effort | default('Medium') }}</span>
+                  {% if item.deadline %}<span class="rp-deadline">⏰ {{ item.deadline }}</span>{% endif %}
+                  {% if item.reference %}<span class="rp-ref">{{ item.reference }}</span>{% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+        </div>
+        {% endfor %}
+      {% else %}
+      <div style="text-align:center;padding:40px;color:var(--muted);">Run correlation above to see SOC×VAPT risk analysis.</div>
+      {% endif %}
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>PCAP-BASED SOC & VA FRAMEWORK v2.0 — FOR AUTHORIZED USE ONLY</span>
+  <span>Nmap · Nuclei v3 · CVE Mapping · MITRE ATT&CK · IR Playbook</span>
+</footer>
+
+<script>
+// Matrix
+const cvs=document.getElementById('matrix'),cx=cvs.getContext('2d');
+function rsz(){cvs.width=window.innerWidth;cvs.height=window.innerHeight;}rsz();window.addEventListener('resize',rsz);
+const ch='01アイウエ';let dp=Array(Math.floor(cvs.width/14)).fill(1);
+setInterval(()=>{cx.fillStyle='rgba(0,5,10,.06)';cx.fillRect(0,0,cvs.width,cvs.height);cx.font='11px monospace';dp.forEach((y,i)=>{cx.fillStyle=i%3?'#002211':'#00ff9d';cx.fillText(ch[Math.floor(Math.random()*ch.length)],i*14,y*14);if(y*14>cvs.height&&Math.random()>.975)dp[i]=0;dp[i]++;});},60);
+
+function switchTab(name, btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+function animateProgress(barId, stepId, steps, cb){
+  const bar=document.getElementById(barId), lbl=document.getElementById(stepId);
+  let i=0;
+  const iv=setInterval(()=>{
+    lbl.textContent=steps[i]||'';
+    bar.style.width=Math.round((i+1)/steps.length*100)+'%';
+    i++;
+    if(i>=steps.length){clearInterval(iv);setTimeout(cb,400);}
+  },450);
+}
+
+function runNmap(){
+  const target=document.getElementById('nmap-target').value.trim();
+  if(!target){alert('Enter a target');return;}
+  document.getElementById('nmap-progress').classList.remove('hidden');
+  const steps=['Initializing Nmap scanner...','Host discovery (-Pn skip ping)...','Port scanning (SYN/TCP scan)...','Service/version detection...','OS fingerprinting...','NSE vulnerability scripts...','CVE correlation lookup...','Generating findings...'];
+  animateProgress('nmap-bar','nmap-step',steps,()=>{
+    const fd=new FormData();
+    fd.append('target',target);
+    if(document.getElementById('f_sv').checked)   fd.append('flag_sv','1');
+    if(document.getElementById('f_sc').checked)   fd.append('flag_sc','1');
+    if(document.getElementById('f_pn').checked)   fd.append('flag_pn','1');
+    if(document.getElementById('f_os').checked)   fd.append('flag_os','1');
+    if(document.getElementById('f_all').checked)  fd.append('flag_allports','1');
+    fetch('/vapt/nmap',{method:'POST',body:fd})
+      .then(r=>r.json()).then(data=>{
+        document.getElementById('nmap-progress').classList.add('hidden');
+        if(data.status==='success'){
+          if(data.count>0){
+            document.getElementById('nmap-results').innerHTML=
+              `<div style="text-align:center;padding:16px;color:var(--green);font-size:12px;font-weight:700;">
+               ✅ Scan complete — ${data.count} port(s) found. Reloading…</div>`;
+            setTimeout(()=>location.reload(),1000);
+          } else {
+            document.getElementById('nmap-results').innerHTML=
+              `<div style="text-align:center;padding:30px;color:var(--muted);">
+               Scan completed — 0 open ports found on <strong style="color:var(--cyan);">${target}</strong>.<br>
+               <span style="font-size:13px;color:var(--muted);margin-top:6px;display:block;">
+               Command run: <code style="color:var(--yellow);">${data.cmd||''}</code></span>
+               <span style="font-size:13px;color:var(--muted);margin-top:4px;display:block;">
+               Try scanning 127.0.0.1 (WSL localhost) or disable Windows Firewall for private network.</span></div>`;
+          }
+        } else {
+          document.getElementById('nmap-results').innerHTML=
+            `<div style="text-align:center;padding:20px;color:var(--red);font-size:12px;">
+             ✗ Scan error: ${data.message||'Unknown error'}<br>
+             <span style="font-size:13px;color:var(--muted);display:block;margin-top:6px;">
+             Command: <code style="color:var(--yellow);">${data.cmd||''}</code></span></div>`;
+        }
+      }).catch(e=>{ document.getElementById('nmap-progress').classList.add('hidden');
+        document.getElementById('nmap-results').innerHTML=
+          `<div style="text-align:center;padding:20px;color:var(--red);">Network error: ${e.message}</div>`; });
+  });
+}
+
+function renderNmapResults(findings){
+  const el=document.getElementById('nmap-results');
+  if(!findings.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted);">No findings returned.</div>';return;}
+  let html='<div style="background:#ffffff;border:1px solid var(--border);border-radius:8px;overflow:hidden;"><table><thead><tr><th>Host</th><th>Port</th><th>Service</th><th>Version</th><th>CVE</th><th>Severity</th></tr></thead><tbody>';
+  findings.forEach(f=>{
+    if(f.cves&&f.cves.length){
+      f.cves.forEach(c=>{
+        html+=`<tr><td style="color:var(--cyan);">${f.host}</td><td style="color:var(--muted);">${f.port}</td><td style="color:var(--text);">${f.service}</td><td style="color:var(--muted);font-size:13px;">${(f.version||'').slice(0,28)}</td><td><span style="color:var(--yellow);font-size:13px;">${c.cve||''}</span><br><span style="color:var(--muted);font-size:13px;">${(c.desc||'').slice(0,50)}</span></td><td><span class="badge badge-${c.severity}">${c.severity}</span></td></tr>`;
+      });
+    } else {
+      html+=`<tr><td style="color:var(--cyan);">${f.host}</td><td style="color:var(--muted);">${f.port}</td><td style="color:var(--text);">${f.service}</td><td style="color:var(--muted);font-size:13px;">${(f.version||'').slice(0,28)}</td><td style="color:var(--muted);font-size:13px;">No CVE</td><td><span class="badge badge-Info">Info</span></td></tr>`;
+    }
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function runNuclei(){
+  const target=document.getElementById('nuclei-target').value.trim();
+  if(!target){alert('Enter a target');return;}
+  document.getElementById('nuclei-progress').classList.remove('hidden');
+  const steps=['Loading CVE templates (7,200+)...','HTTP probe on open ports...','Log4Shell detection (T1190)...','Spring4Shell probe...','Default credential checks...','SSL/TLS version audit...','Correlating with MITRE ATT&CK...','Risk scoring complete...'];
+  animateProgress('nuclei-bar','nuclei-step',steps,()=>{
+    const fd=new FormData(); fd.append('target',target);
+    const tags=[]; if(document.getElementById('t_cve').checked)tags.push('cve'); if(document.getElementById('t_login').checked)tags.push('default-login'); if(document.getElementById('t_panel').checked)tags.push('exposed-panel'); if(document.getElementById('t_misc').checked)tags.push('misconfig'); if(document.getElementById('t_ssl').checked)tags.push('ssl'); if(document.getElementById('t_net').checked)tags.push('network');
+    fd.append('tags',tags.join(','));
+    fd.append('severity','critical,high,medium,low,info');
+    fetch('/vapt/nuclei',{method:'POST',body:fd})
+      .then(r=>r.json()).then(data=>{
+        document.getElementById('nuclei-progress').classList.add('hidden');
+        if(data.status==='success'){
+          if(data.count>0){
+            document.getElementById('nuclei-results').innerHTML=
+              `<div style="text-align:center;padding:16px;color:var(--green);font-size:12px;font-weight:700;">
+               ✅ Scan complete — ${data.count} finding(s). Reloading…</div>`;
+            setTimeout(()=>location.reload(),1000);
+          } else {
+            document.getElementById('nuclei-results').innerHTML=
+              `<div style="text-align:center;padding:30px;color:var(--muted);">
+               Scan completed — 0 findings on <strong style="color:var(--cyan);">${target}</strong>.<br>
+               <span style="font-size:13px;color:var(--muted);margin-top:6px;display:block;">
+               Command: <code style="color:var(--yellow);">${data.cmd||''}</code></span>
+               <span style="font-size:13px;color:var(--muted);margin-top:4px;display:block;">
+               Try: http://testphp.vulnweb.com or http://testasp.vulnweb.com for guaranteed findings.</span></div>`;
+          }
+        } else {
+          document.getElementById('nuclei-results').innerHTML=
+            `<div style="text-align:center;padding:20px;color:var(--red);font-size:12px;">
+             ✗ Scan error: ${data.message||'Unknown error'}<br>
+             <span style="font-size:13px;color:var(--muted);display:block;margin-top:6px;">
+             Command: <code style="color:var(--yellow);">${data.cmd||''}</code></span></div>`;
+        }
+      }).catch(e=>{ document.getElementById('nuclei-progress').classList.add('hidden');
+        document.getElementById('nuclei-results').innerHTML=
+          `<div style="text-align:center;padding:20px;color:var(--red);">Network error: ${e.message}</div>`; });
+  });
+}
+
+// ── Expandable row toggles ─────────────────────────────────────────────────
+function toggleNmapRow(row, idx) {
+  const det = document.getElementById('nmap-det-'+idx);
+  if (!det) return;
+  const wasHidden = det.classList.contains('hidden');
+  // close all
+  document.querySelectorAll('[id^="nmap-det-"]').forEach(d => d.classList.add('hidden'));
+  document.querySelectorAll('[id^="nuclei-det-"]').forEach(d => d.classList.add('hidden'));
+  if (wasHidden) det.classList.remove('hidden');
+}
+
+function toggleNucleiRow(row, idx) {
+  const det = document.getElementById('nuclei-det-'+idx);
+  if (!det) return;
+  const wasHidden = det.classList.contains('hidden');
+  document.querySelectorAll('[id^="nuclei-det-"]').forEach(d => d.classList.add('hidden'));
+  document.querySelectorAll('[id^="nmap-det-"]').forEach(d => d.classList.add('hidden'));
+  if (wasHidden) det.classList.remove('hidden');
+}
+
+function renderNucleiResults(findings){
+  const el=document.getElementById('nuclei-results');
+  if(!findings.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted);">No findings returned.</div>';return;}
+  let html='<div style="background:#ffffff;border:1px solid var(--border);border-radius:8px;overflow:hidden;"><table><thead><tr><th>Template</th><th>Finding</th><th>Host</th><th>MITRE</th><th>Severity</th></tr></thead><tbody>';
+  findings.forEach(f=>{
+    html+=`<tr><td style="color:var(--yellow);font-size:13px;">${f.template_id}</td><td><div style="color:var(--text);font-size:13px;">${f.name}</div><div style="color:var(--muted);font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.matched_at||''}</div></td><td style="color:var(--cyan);font-size:13px;">${(f.host||'').slice(0,30)}</td><td style="color:var(--yellow);font-size:13px;">${f.mitre}</td><td><span class="badge badge-${f.severity}">${f.severity}</span></td></tr>`;
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function runCorrelation(){
+  document.getElementById('corr-progress').classList.remove('hidden');
+  const steps=['Importing SOC alerts...','Extracting VAPT findings...','Correlating by host IP...','Calculating combined risk scores...','Generating IR recommendations...'];
+  animateProgress('corr-bar','corr-step',steps,()=>{
+    fetch('/vapt/correlate',{method:'POST'})
+      .then(r=>r.json()).then(data=>{
+        document.getElementById('corr-progress').classList.add('hidden');
+        renderCorrelations(data.correlations||[]);
+      }).catch(()=>{ document.getElementById('corr-progress').classList.add('hidden'); });
+  });
+}
+
+function renderCorrelations(items){
+  const el=document.getElementById('corr-results');
+  if(!items.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted);">No correlated data found. Run both Nmap and Nuclei scans first, and ensure SOC pipeline has been run.</div>';return;}
+  const clr={Critical:'var(--red)',High:'var(--orange)',Medium:'var(--yellow)',Low:'var(--green)'};
+  let html='';
+  items.forEach(r=>{
+    const c=clr[r.combined_risk]||'#636366';
+    html+=`<div class="corr-card" style="border-left-color:${c};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div><div style="color:var(--text);font-weight:700;font-size:14px;">${r.host}</div><div style="color:var(--muted);font-size:13px;margin-top:2px;">Score: ${r.combined_score}/100</div></div>
+        <span class="badge badge-${r.combined_risk}">${r.combined_risk}</span>
+      </div>
+      <div class="corr-grid">
+        <div class="corr-box" style="background:rgba(255,45,85,.07);"><div style="color:var(--red);font-size:13px;letter-spacing:1px;margin-bottom:4px;">SOC ALERTS (${r.soc_alerts})</div>${(r.soc_summary||[]).map(a=>`<div style="color:var(--text);font-size:13px;">${(a.reason||'').slice(0,60)}…</div>`).join('')||'<div style="color:var(--muted);font-size:13px;">No active SOC alerts</div>'}</div>
+        <div class="corr-box" style="background:rgba(255,107,53,.07);"><div style="color:var(--orange);font-size:13px;letter-spacing:1px;margin-bottom:4px;">VAPT FINDINGS (${r.vapt_findings})</div>${(r.vapt_summary||[]).map(v=>`<div style="color:var(--text);font-size:13px;">${v.name} — <span class="badge badge-${v.severity}" style="font-size:8px;">${v.severity}</span></div>`).join('')||'<div style="color:var(--muted);font-size:13px;">No VAPT findings</div>'}</div>
+      </div>
+      <div class="ir-action" style="background:rgba(0,255,157,.05);border:1px solid rgba(0,255,157,.15);">
+        <span style="color:var(--green);font-size:13px;letter-spacing:1px;">⚡ RECOMMENDED ACTION: </span>
+        <span style="color:var(--text);font-size:13px;">${r.ir_action}</span>
+      </div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+{% if nmap_count > 0 or nuclei_count > 0 %}
+// Charts
+const sevData = { Critical:{{sev_counts.Critical}}, High:{{sev_counts.High}}, Medium:{{sev_counts.Medium}}, Low:{{sev_counts.Low}} };
+new Chart(document.getElementById('sevChart'),{type:'doughnut',data:{labels:Object.keys(sevData),datasets:[{data:Object.values(sevData),backgroundColor:['rgba(229,62,62,.4)','rgba(237,137,54,.4)','rgba(214,158,46,.4)','rgba(56,161,105,.4)'],borderColor:['var(--red)','var(--orange)','var(--yellow)','var(--green)'],borderWidth:2}]},options:{maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'var(--muted)',font:{family:'Inter',size:9},boxWidth:8,padding:6}}}}});
+new Chart(document.getElementById('srcChart'),{type:'bar',data:{labels:['Nmap','Nuclei'],datasets:[{label:'Findings',data:[{{nmap_count}},{{nuclei_count}}],backgroundColor:['rgba(0,204,255,.4)','rgba(255,214,10,.4)'],borderColor:['var(--cyan)','var(--yellow)'],borderWidth:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'var(--muted)',font:{family:'Inter',size:10}},grid:{color:'rgba(232,234,240,.8)'}},y:{ticks:{color:'var(--muted)',font:{family:'Inter',size:10}},grid:{color:'rgba(232,234,240,.8)'},beginAtZero:true}}}});
+{% endif %}
+</script>
+</body>
+</html>

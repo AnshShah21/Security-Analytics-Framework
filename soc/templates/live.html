@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Traffic Capture — SOC</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --accent:  #6979f8;
+    --accent2: #5c6bc0;
+    --green:   #38a169;
+    --cyan:    #3182ce;
+    --red:     #e53e3e;
+    --orange:  #ed8936;
+    --yellow:  #d69e2e;
+    --purple:  #805ad5;
+    --bg:      #eef0f9;
+    --card:    #ffffff;
+    --border:  #e8eaf0;
+    --text:    #1a1f36;
+    --muted:   #8b95b0;
+    --shadow:  0 2px 12px rgba(105,121,248,.08), 0 1px 3px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', monospace; min-height: 100vh; }
+
+  /* NAV — identical to dashboard.html */
+  nav { position: relative; z-index: 10; background: #ffffff; border-bottom: 1px solid var(--border); box-shadow: 0 1px 4px rgba(105,121,248,.08); padding: 0 28px; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand-name { font-family: 'Inter', sans-serif; color: var(--text); font-size: 15px; font-weight: 700; }
+  .brand-sub  { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin-top: 2px; }
+  .nav-links  { display: flex; gap: 6px; }
+  .nav-btn { padding: 7px 18px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: #7a9aaa; font-family: 'Inter', monospace; font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; text-decoration: none; display: inline-block; transition: all .2s; }
+  .nav-btn:hover  { border-color: var(--accent); color: var(--accent); background: rgba(105,121,248,.06); }
+  .nav-btn.active { border-color: rgba(229,62,62,.45); color: #ff7a45; background: rgba(229,62,62,.06); font-weight: 600; }
+
+  /* LAYOUT */
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 28px 60px; }
+
+  /* PAGE HEADER */
+  .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .page-bar    { width: 4px; height: 32px; background: #ff7a45; border-radius: 2px; flex-shrink: 0; }
+  .page-title  { font-family: 'Inter', sans-serif; color: var(--text); font-size: 18px; font-weight: 700; }
+  .page-sub    { color: var(--muted); font-size: 11px; letter-spacing: 1px; margin-top: 3px; }
+
+  /* STAT CARDS */
+  .stat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat { background: #ffffff; border-radius: 16px; padding: 18px 20px; border: 1px solid var(--border); box-shadow: var(--shadow); text-align: center; }
+  .stat-val { font-family: 'Inter', sans-serif; font-size: 32px; font-weight: 700; line-height: 1; color: var(--accent); }
+  .stat-lab { font-size: 11px; letter-spacing: .5px; text-transform: uppercase; margin-top: 8px; font-weight: 600; color: var(--muted); }
+
+  /* CARDS */
+  .card { background: #ffffff; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
+  .card-title { color: var(--muted); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; font-weight: 700; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+  /* FORM ELEMENTS */
+  .form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+  .form-group label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  select { background: #f7f8fc; border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 9px 12px; font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; outline: none; transition: border-color .2s; }
+  select:focus { border-color: var(--accent); }
+
+  /* BUTTONS */
+  .btn { padding: 9px 22px; border-radius: 6px; font-family: 'Inter', monospace; font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: all .2s; border: none; display: inline-block; text-decoration: none; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-start { background: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(56,161,105,.3); }
+  .btn-start:hover:not(:disabled) { background: #2f8f5a; }
+  .btn-stop  { background: rgba(229,62,62,.1); border: 1px solid rgba(229,62,62,.45); color: var(--red); }
+  .btn-stop:hover:not(:disabled)  { background: rgba(229,62,62,.18); }
+  .btn-dash  { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(105,121,248,.3); }
+  .btn-dash:hover { background: #5a6be0; }
+
+  /* STATUS BADGE */
+  .status-pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+  .pill-live    { background: rgba(56,161,105,.1);  color: var(--green); border: 1px solid rgba(56,161,105,.4); }
+  .pill-stopped { background: rgba(139,149,176,.1); color: var(--muted); border: 1px solid rgba(139,149,176,.3); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-live    { background: var(--green); animation: pulse 1.4s infinite; }
+  .dot-stopped { background: var(--muted); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* INFO TABLE */
+  .info-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .info-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .info-table td:first-child { color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; width: 160px; }
+  .info-table td:last-child  { color: var(--text); font-family: 'Inter', monospace; font-size: 12px; }
+  .info-table tr:last-child td { border-bottom: none; }
+
+  /* ACTIVITY LOG */
+  #log-tail { background: #f7f8fc; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: 'Inter', monospace; font-size: 12px; color: var(--text); height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+  .log-line-ok  { color: var(--green); }
+  .log-line-run { color: var(--accent); }
+  .log-line-err { color: var(--red); }
+
+  /* FLASH */
+  .flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+  .flash.success { background: rgba(56,161,105,.08); border: 1px solid rgba(56,161,105,.3); color: var(--green); }
+  .flash.error   { background: rgba(229,62,62,.08);  border: 1px solid rgba(229,62,62,.3);  color: var(--red); }
+  .flash.warning { background: rgba(237,137,54,.08); border: 1px solid rgba(237,137,54,.3); color: var(--orange); }
+
+  /* SETUP TABLE */
+  code { background: #f0f2f9; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-family: 'Inter', monospace; color: var(--accent); border: 1px solid var(--border); }
+
+  footer { border-top: 1px solid var(--border); padding: 13px 28px; background: #ffffff; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<!-- NAV — same structure as dashboard.html -->
+<nav>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,122,69,.1);border:2px solid #ff7a45;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 18px rgba(255,122,69,.25);">📡</div>
+    <div>
+      <div class="brand-name">LIVE TRAFFIC CAPTURE</div>
+      <div class="brand-sub">REAL-TIME ZEEK → NBAD DETECTION → TIP ENRICHMENT → MITRE ATT&CK</div>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="/"          class="nav-btn">📦 UPLOAD PCAP</a>
+    <a href="/dashboard" class="nav-btn">📊 SOC DASHBOARD</a>
+    <a href="/vapt"      class="nav-btn">🔬 VAPT MODULE</a>
+    <a href="/live"      class="nav-btn active">🔴 LIVE TRAFFIC</a>
+  </div>
+  <div style="text-align:right;">
+    <div style="color:#ff7a45;font-size:14px;font-weight:700;letter-spacing:1px;" id="clock">--:--:--</div>
+    <div style="color:var(--muted);font-size:10px;letter-spacing:1px;margin-top:2px;" id="datestamp">----</div>
+  </div>
+</nav>
+
+<main>
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="page-bar"></div>
+    <div>
+      <div class="page-title">📡 Live Traffic Capture</div>
+      <div class="page-sub">REAL-TIME ZEEK ON WSL INTERFACE → SOC PIPELINE EVERY {{ status.interval_sec or 30 }}s</div>
+    </div>
+  </div>
+
+  <!-- STAT CARDS -->
+  <div class="stat-grid">
+    <div class="stat" style="border-color:rgba(255,122,69,.3);">
+      <div class="stat-val" id="stat-status" style="font-size:22px;">{% if status.running %}🟢 ON{% else %}⚪ OFF{% endif %}</div>
+      <div class="stat-lab">Capture State</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-iface" style="font-size:18px;">{{ status.interface or "—" }}</div>
+      <div class="stat-lab">Interface</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-runs">{{ status.pipeline_runs or 0 }}</div>
+      <div class="stat-lab">Pipeline Runs</div>
+    </div>
+    <div class="stat" style="border-color:rgba(229,62,62,.3);">
+      <div class="stat-val" id="stat-incidents" style="color:var(--red);">—</div>
+      <div class="stat-lab">Incidents Found</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-interval" style="font-size:22px;">{{ status.interval_sec or 30 }}s</div>
+      <div class="stat-lab">Pipeline Interval</div>
+    </div>
+  </div>
+
+  <!-- CAPTURE CONTROLS -->
+  <div class="card">
+    <div class="card-title">Capture Controls</div>
+    <form method="POST" action="/live/start">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="interface">WSL Network Interface</label>
+          <select name="interface" id="interface">
+            {% for iface in interfaces %}
+              <option value="{{ iface }}" {% if status.interface == iface %}selected{% endif %}>{{ iface }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-start" id="btn-start" {% if status.running %}disabled{% endif %}>
+          ▶ START CAPTURE
+        </button>
+      </div>
+    </form>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+      <form method="POST" action="/live/stop" style="display:inline;">
+        <button type="submit" class="btn btn-stop" id="btn-stop" {% if not status.running %}disabled{% endif %}>
+          ■ STOP CAPTURE
+        </button>
+      </form>
+      <a href="/dashboard" class="btn btn-dash">📊 OPEN DASHBOARD</a>
+    </div>
+  </div>
+
+  <!-- SESSION INFO + ACTIVITY LOG side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-title">Session Info</div>
+      <table class="info-table">
+        <tr>
+          <td>Status</td>
+          <td>
+            <span class="status-pill {% if status.running %}pill-live{% else %}pill-stopped{% endif %}" id="badge">
+              <span class="dot {% if status.running %}dot-live{% else %}dot-stopped{% endif %}" id="badge-dot"></span>
+              <span id="badge-text">{% if status.running %}Live{% else %}Stopped{% endif %}</span>
+            </span>
+          </td>
+        </tr>
+        <tr><td>Interface</td>    <td id="td-iface">{{ status.interface or "—" }}</td></tr>
+        <tr><td>Started At</td>   <td id="td-start">{{ status.start_time or "—" }}</td></tr>
+        <tr><td>Last Run</td>     <td id="td-last">{{ status.last_run or "—" }}</td></tr>
+        <tr><td>Pipeline Runs</td><td id="td-runs">{{ status.pipeline_runs or 0 }}</td></tr>
+      </table>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-title">Activity Log</div>
+      <div id="log-tail">[Waiting for capture activity...]</div>
+    </div>
+
+  </div>
+
+  <!-- SETUP REQUIREMENTS -->
+  <div class="card">
+    <div class="card-title">Setup Requirements</div>
+    <table class="info-table">
+      <tr><td>WSL Distro</td>    <td>Ubuntu-22.04 &nbsp; (override: <code>WSL_DISTRO</code> in .env)</td></tr>
+      <tr><td>Zeek Binary</td>   <td>/opt/zeek/bin/zeek &nbsp; (override: <code>ZEEK_BINARY</code> in .env)</td></tr>
+      <tr><td>Permissions</td>   <td>Zeek needs raw socket access — launched with <code>sudo</code> inside WSL</td></tr>
+      <tr><td>Interval</td>      <td><code>LIVE_INTERVAL=30</code> in .env &nbsp;— seconds between pipeline runs</td></tr>
+      <tr><td>Max Alerts</td>    <td><code>LIVE_MAX_ALERTS=500</code> in .env &nbsp;— rolling alert window size</td></tr>
+    </table>
+  </div>
+
+</main>
+
+<footer>
+  <span>PCAP-BASED SOC & VAPT FRAMEWORK v2.0 — FOR AUTHORIZED USE ONLY</span>
+  <span>Live Zeek on WSL · Incremental Pipeline · MITRE ATT&CK Mapped</span>
+</footer>
+
+<script>
+// Clock — same as dashboard.html
+function tick(){
+  var n=new Date();
+  var pad=function(x){return x<10?'0'+x:x};
+  document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds())+' PM';
+  document.getElementById('datestamp').textContent=n.getDate().toString().padStart(2,'0')+'/'+(n.getMonth()+1).toString().padStart(2,'0')+'/'+n.getFullYear()+' UTC';
+}
+tick(); setInterval(tick, 1000);
+
+// Activity log
+var logLines=[];
+function appendLog(msg, cls){
+  var now=new Date().toISOString().replace('T',' ').slice(0,19);
+  logLines.push('['+now+'] '+msg);
+  if(logLines.length>80) logLines=logLines.slice(-80);
+  var el=document.getElementById('log-tail');
+  el.textContent=logLines.join('\n');
+  el.scrollTop=el.scrollHeight;
+}
+
+function updateUI(data){
+  var running=data.running;
+
+  // Badge
+  var badge=document.getElementById('badge');
+  var dot=document.getElementById('badge-dot');
+  var badgeTxt=document.getElementById('badge-text');
+  badge.className='status-pill '+(running?'pill-live':'pill-stopped');
+  dot.className='dot '+(running?'dot-live':'dot-stopped');
+  badgeTxt.textContent=running?'Live':'Stopped';
+
+  // Stats
+  document.getElementById('stat-status').textContent=running?'🟢 ON':'⚪ OFF';
+  document.getElementById('stat-iface').textContent=data.interface||'—';
+  document.getElementById('stat-runs').textContent=data.pipeline_runs||0;
+  document.getElementById('stat-incidents').textContent=data.incident_count!=null?data.incident_count:'—';
+  document.getElementById('stat-interval').textContent=(data.interval_sec||30)+'s';
+
+  // Table
+  document.getElementById('td-iface').textContent=data.interface||'—';
+  document.getElementById('td-start').textContent=data.start_time||'—';
+  document.getElementById('td-last').textContent=data.last_run||'—';
+  document.getElementById('td-runs').textContent=data.pipeline_runs||0;
+
+  // Buttons
+  document.getElementById('btn-start').disabled=running;
+  document.getElementById('btn-stop').disabled=!running;
+}
+
+var lastRuns=null;
+
+function pollStatus(){
+  fetch('/live/status')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      updateUI(data);
+      if(data.running){
+        if(lastRuns===null) appendLog('Capture active on interface: '+data.interface);
+        else if(data.pipeline_runs>lastRuns)
+          appendLog('Pipeline run #'+data.pipeline_runs+' complete — '+data.incident_count+' incident(s) in dashboard');
+        lastRuns=data.pipeline_runs;
+      } else if(lastRuns!==null){
+        appendLog('Capture stopped.');
+        lastRuns=null;
+      }
+    })
+    .catch(function(e){appendLog('Status poll error: '+e.message);});
+}
+
+pollStatus();
+setInterval(pollStatus, 5000);
+</script>
+
+</body>
+</html>

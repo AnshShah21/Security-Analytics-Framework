@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOC Dashboard — PCAP-Based Threat Detection</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --accent:  #6979f8;
+    --accent2: #5c6bc0;
+    --green:   #38a169;
+    --cyan:    #3182ce;
+    --red:     #e53e3e;
+    --orange:  #ed8936;
+    --yellow:  #d69e2e;
+    --purple:  #805ad5;
+    --bg:      #eef0f9;
+    --card:    #ffffff;
+    --border:  #e8eaf0;
+    --text:    #1a1f36;
+    --muted:   #8b95b0;
+    --shadow:  0 2px 12px rgba(105,121,248,.08), 0 1px 3px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', monospace; min-height: 100vh; }
+  #matrix { display:none; }
+
+  /* NAV */
+  nav { position: relative; z-index: 10; background: #ffffff; border-bottom: 1px solid var(--border); box-shadow: 0 1px 4px rgba(105,121,248,.08); padding: 0 28px; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand-name { font-family: 'Inter', sans-serif; color: var(--text); font-size: 15px; font-weight: 700; letter-spacing: 0; }
+  .brand-sub  { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin-top: 2px; }
+  .nav-links  { display: flex; gap: 6px; }
+  .nav-btn { padding: 7px 18px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: #7a9aaa; font-family: 'Inter', monospace; font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; text-decoration: none; display: inline-block; transition: all .2s; }
+  .nav-btn:hover  { border-color: var(--accent); color: var(--accent); background: rgba(105,121,248,.06); }
+  .nav-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(105,121,248,.08); font-weight: 600; }
+  .nav-btn.vapt:hover { border-color: var(--accent); color: var(--accent); background: rgba(105,121,248,.06); }
+
+  /* LAYOUT */
+  main { position: relative; z-index: 5; max-width: 1400px; margin: 0 auto; padding: 24px 28px 50px; }
+
+  /* PAGE HEADER */
+  .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .page-bar    { width: 4px; height: 32px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
+  .page-title  { font-family: 'Inter', sans-serif; color: var(--text); font-size: 18px; font-weight: 700; letter-spacing: 0; }
+  .page-sub    { color: var(--muted); font-size: 11px; letter-spacing: 1px; margin-top: 3px; }
+
+  /* STAT CARDS — big clear numbers */
+  .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+  .stat { background: #ffffff; border-radius: 16px; padding: 20px 22px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .stat-icon { font-size: 22px; margin-bottom: 8px; }
+  .stat-val  { font-family: 'Inter', sans-serif; font-size: 40px; font-weight: 700; line-height: 1; }
+  .stat-lab  { font-size: 12px; letter-spacing: .5px; text-transform: uppercase; margin-top: 8px; font-weight: 600; color: var(--muted); }
+
+  /* EXPORT BAR */
+  .action-bar { display: flex; gap: 10px; margin-bottom: 18px; align-items: center; flex-wrap: wrap; }
+  .btn-export { padding: 9px 22px; border-radius: 6px; font-family: 'Inter', monospace; font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; text-decoration: none; display: inline-block; transition: all .2s; }
+  .btn-csv  { background: var(--accent); border: none; color: #fff; box-shadow: 0 2px 8px rgba(105,121,248,.3); }
+  .btn-csv:hover  { background: #5a6be0; }
+  .btn-pdf  { background: var(--orange); border: none; color: #fff; box-shadow: 0 2px 8px rgba(237,137,54,.3); }
+  .btn-pdf:hover  { background: rgba(255,122,69,.22); }
+  .incident-badge { margin-left: auto; background: rgba(105,121,248,.08); border: 1px solid rgba(105,121,248,.2); border-radius: 20px; padding: 6px 16px; color: var(--accent); font-size: 13px; font-weight: 600; }
+
+  /* CHARTS — compact */
+  .chart-row { display: grid; grid-template-columns: 210px 1fr; gap: 14px; margin-bottom: 24px; }
+  .chart-box { background: #ffffff; border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .chart-title { color: var(--muted); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; font-weight: 700; }
+
+  /* TI STRIP */
+  .ti-strip { background: rgba(0,255,157,.04); border: 1px solid rgba(0,255,157,.15); border-radius: 7px; padding: 9px 16px; margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ti-tag { background: rgba(105,121,248,.07); border: 1px solid rgba(105,121,248,.2); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--accent); font-weight: 500; }
+
+  /* FILTER BAR */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .filter-btn { padding: 7px 18px; border-radius: 5px; font-family: 'Inter', monospace; font-size: 11px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: all .2s; background: transparent; }
+  .search-input { flex: 1; min-width: 240px; background: rgba(0,8,16,.8); border: 1px solid var(--border); border-radius: 5px; padding: 8px 14px; color: var(--text); font-family: 'Inter', monospace; font-size: 12px; outline: none; transition: border-color .2s; }
+  .search-input:focus { border-color: var(--green); }
+  .search-input::placeholder { color: var(--muted); }
+
+  /* TABLE */
+  .table-wrap { background: #ffffff; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { background: #f7f8fc; color: var(--muted); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 600; }
+  tbody tr { border-bottom: 1px solid rgba(13,48,64,.6); transition: background .15s; cursor: pointer; }
+  tbody tr:hover   { background: rgba(0,255,157,.04); }
+  tbody tr.expanded{ background: rgba(105,121,248,.04); }
+  tbody td { padding: 12px 14px; vertical-align: middle; }
+
+  /* TABLE CELL STYLES — clearly readable */
+  .td-protocol { color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: 0; }
+  .td-indicator{ color: #a0b8c8; font-size: 12px; }
+  .td-score    { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 16px; }
+  .td-count    { color: #90c0d0; font-size: 13px; font-weight: 700; }
+  .td-mitre    { color: var(--accent); font-size: 12px; font-weight: 600; }
+  .td-tech     { color: #a0c8d8; font-size: 11px; }
+  .td-reason   { color: #a0b8c8; font-size: 11px; }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; border: 1px solid; }
+  .b-Critical { color: #ff4060; border-color: rgba(255,64,96,.55);  background: rgba(255,64,96,.14); }
+  .b-High     { color: #ff7a45; border-color: rgba(255,122,69,.55); background: rgba(255,122,69,.14); }
+  .b-Medium   { color: #ffd60a; border-color: rgba(255,214,10,.55); background: rgba(255,214,10,.12); }
+  .b-Low      { color: #30d158; border-color: rgba(48,209,88,.55);  background: rgba(48,209,88,.12); }
+  .b-Unknown  { color: #8888aa; border-color: rgba(136,136,170,.4); background: rgba(136,136,170,.1); }
+  .b-Malicious{ color: #ff4060; border-color: rgba(255,64,96,.55);  background: rgba(255,64,96,.14); }
+
+  /* DETAIL EXPANSION */
+  .detail-row td { padding: 0 !important; }
+  .detail-inner { padding: 16px 18px; background: #fafbfe; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+  .detail-row-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .detail-box { background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 4px rgba(105,121,248,.06); }
+  .detail-label{ color: #5a8a9a; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
+  .detail-num  { font-family: 'Orbitron', monospace; font-weight: 700; font-size: 24px; }
+  .detail-unit { color: var(--muted); font-size: 10px; margin-left: 4px; }
+  .mini-bar-wrap{ background: rgba(255,255,255,.06); border-radius: 2px; height: 5px; margin-top: 7px; overflow: hidden; }
+  .mini-bar    { height: 100%; border-radius: 2px; transition: width .6s ease; }
+
+  /* TI OVERVIEW PANEL */
+  .ti-overview { background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(105,121,248,.06); }
+  .ti-overview-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .ti-overview-title  { color: var(--cyan); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .ti-overview-grid   { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .ti-card { background: #f7f8fc; border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; }
+  .ti-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .ti-card-name   { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+  .ti-card-badge  { font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border-radius: 3px; border: 1px solid; text-transform: uppercase; }
+  .ti-mal   { color: #ff4060; border-color: rgba(255,64,96,.5);  background: rgba(255,64,96,.12); }
+  .ti-clean { color: #30d158; border-color: rgba(48,209,88,.5);  background: rgba(48,209,88,.1); }
+  .ti-none  { color: #6a9aaa; border-color: rgba(106,154,170,.3);background: transparent; }
+  .ti-row   { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(13,48,64,.4); }
+  .ti-row:last-child { border-bottom: none; }
+  .ti-row-label { color: #5a8a9a; font-size: 10px; letter-spacing: .5px; }
+  .ti-row-val   { font-size: 11px; font-weight: 700; }
+  .ti-not-checked { color: var(--muted); font-size: 11px; font-style: italic; margin-top: 4px; }
+  .ti-vendor-bar  { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 7px; }
+  .ti-vendor-dot  { width: 8px; height: 8px; border-radius: 50%; }
+  .ti-skipped-note { color: #4a7a8a; font-size: 10px; margin-top: 5px; letter-spacing: .3px; }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 70px 20px; color: var(--muted); }
+  .empty-icon  { font-size: 52px; margin-bottom: 14px; }
+  .empty-title { font-size: 16px; letter-spacing: 2px; color: #8abac8; margin-bottom: 8px; }
+  .empty-sub   { font-size: 12px; }
+
+  footer { position: relative; z-index: 5; border-top: 1px solid var(--border); padding: 13px 28px; background: #ffffff; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .hidden { display: none; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #000a12; }
+  ::-webkit-scrollbar-thumb { background: #0d3040; border-radius: 3px; }
+
+
+  /* AI ANALYSIS PANEL */
+  .ai-panel { background: linear-gradient(135deg, rgba(105,121,248,.06) 0%, rgba(128,90,213,.06) 100%); border: 1px solid rgba(105,121,248,.25); border-radius: 12px; padding: 14px 16px; grid-column: 1 / -1; }
+  .ai-panel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(105,121,248,.15); }
+  .ai-panel-title  { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .ai-panel-badge  { font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 2px 8px; border-radius: 3px; border: 1px solid; text-transform: uppercase; margin-left: auto; }
+  .ai-badge-high   { color: var(--green);  border-color: rgba(56,161,105,.5);  background: rgba(56,161,105,.1); }
+  .ai-badge-medium { color: var(--yellow); border-color: rgba(255,214,10,.5);  background: rgba(255,214,10,.1); }
+  .ai-badge-low    { color: var(--muted);  border-color: rgba(139,149,176,.3); background: transparent; }
+  .ai-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .ai-block { background: rgba(255,255,255,.6); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .ai-block-label { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .ai-block-text  { color: var(--text); font-size: 12px; line-height: 1.7; }
+  .ai-action-list { list-style: none; padding: 0; margin: 0; }
+  .ai-action-list li { color: var(--text); font-size: 12px; padding: 3px 0; border-bottom: 1px solid rgba(232,234,240,.8); display: flex; align-items: flex-start; gap: 6px; }
+  .ai-action-list li:last-child { border-bottom: none; }
+  .ai-action-num { color: var(--accent); font-weight: 700; font-size: 11px; flex-shrink: 0; }
+  .ai-loading { color: var(--muted); font-size: 12px; font-style: italic; text-align: center; padding: 10px; }
+  .ai-error   { color: #ff7a45; font-size: 11px; font-style: italic; }
+</style>
+</head>
+<body>
+<canvas id="matrix"></canvas>
+
+<nav>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="width:38px;height:38px;border-radius:50%;background:rgba(0,255,157,.1);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 18px rgba(0,255,157,.3);">🛡️</div>
+    <div>
+      <div class="brand-name">SOC INCIDENT DASHBOARD</div>
+      <div class="brand-sub">PCAP Upload → Zeek → NBAD/NABD Detection → TIP Enrichment → MITRE ATT&CK Mapping</div>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="/"           class="nav-btn">📦 UPLOAD PCAP</a>
+    <a href="/dashboard"  class="nav-btn active">📊 SOC DASHBOARD</a>
+    <a href="/vapt"       class="nav-btn vapt">🔬 VA MODULE</a>
+    <a href="/live"       class="nav-btn" style="border-color:rgba(229,62,62,.45);color:#ff7a45;">🔴 LIVE TRAFFIC</a>
+    <a href="/export/csv" class="nav-btn">⬇ CSV</a>
+    <a href="/export/pdf" class="nav-btn">⬇ PDF</a>
+  </div>
+  <div style="text-align:right;">
+    <div style="color:var(--green);font-size:14px;font-weight:700;letter-spacing:1px;" id="clock">--:--:--</div>
+    <div style="color:var(--muted);font-size:10px;letter-spacing:1px;margin-top:2px;" id="datestamp">----</div>
+  </div>
+</nav>
+
+<main>
+  <div class="page-header">
+    <div class="page-bar"></div>
+    <div>
+      <div class="page-title">🕵️ SOC Incident Dashboard</div>
+      <div class="page-sub">PCAP Upload → Zeek → NBAD/NABD Detection → TIP Enrichment → MITRE ATT&amp;CK Mapping</div>
+    </div>
+  </div>
+
+  <!-- STAT CARDS -->
+  <div class="stat-grid">
+    <div class="stat" style="border-color:rgba(255,64,96,.45);">
+      <div class="stat-icon">🔴</div>
+      <div class="stat-val" style="color:var(--red);">{{ severity_counts.Critical }}</div>
+      <div class="stat-lab" style="color:var(--red);">Critical</div>
+    </div>
+    <div class="stat" style="border-color:rgba(255,122,69,.45);">
+      <div class="stat-icon">🟠</div>
+      <div class="stat-val" style="color:#ff7a45;">{{ severity_counts.High }}</div>
+      <div class="stat-lab" style="color:#ff7a45;">High</div>
+    </div>
+    <div class="stat" style="border-color:rgba(255,214,10,.45);">
+      <div class="stat-icon">🟡</div>
+      <div class="stat-val" style="color:var(--yellow);">{{ severity_counts.Medium }}</div>
+      <div class="stat-lab" style="color:var(--yellow);">Medium</div>
+    </div>
+    <div class="stat" style="border-color:rgba(48,209,88,.45);">
+      <div class="stat-icon">🟢</div>
+      <div class="stat-val" style="color:var(--green);">{{ severity_counts.Low }}</div>
+      <div class="stat-lab" style="color:var(--green);">Low</div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  {% if incident_count > 0 %}
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-title">Severity Distribution</div>
+      <canvas id="sevChart" height="130"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">Protocol Distribution</div>
+      <canvas id="protoChart" height="130"></canvas>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- EXPORT -->
+  <div class="action-bar">
+    <a href="/export/csv" class="btn-export btn-csv">⬇ Export CSV</a>
+    <a href="/export/pdf" class="btn-export btn-pdf">⬇ Export PDF</a>
+    <div class="incident-badge">Total Incidents: {{ incident_count }}</div>
+  </div>
+
+  <!-- TI STRIP -->
+  {% if incident_count > 0 %}
+  <div class="ti-strip">
+    <span style="color:var(--muted);font-size:10px;letter-spacing:1px;">TI SOURCES:</span>
+    <span class="ti-tag">✔ Local Feeds</span>
+    <span class="ti-tag">✔ VirusTotal</span>
+    <span class="ti-tag">✔ AlienVault OTX</span>
+    <span class="ti-tag">✔ AbuseIPDB</span>
+    <span class="ti-tag">✔ MITRE ATT&amp;CK</span>
+    <span class="ti-tag">✔ TIP Scoring</span>
+    <span class="ti-tag">✔ Risk Fusion</span>
+    <span class="ti-tag" style="border-color:rgba(105,121,248,.4);color:var(--accent);background:rgba(105,121,248,.08);">🤖 Groq AI</span>
+  </div>
+  {% endif %}
+
+  <!-- FILTER -->
+  <div class="filter-bar">
+    <button class="filter-btn" id="f-All"      onclick="setFilter('All')">All</button>
+    <button class="filter-btn" id="f-Critical" onclick="setFilter('Critical')">Critical</button>
+    <button class="filter-btn" id="f-High"     onclick="setFilter('High')">High</button>
+    <button class="filter-btn" id="f-Medium"   onclick="setFilter('Medium')">Medium</button>
+    <button class="filter-btn" id="f-Low"      onclick="setFilter('Low')">Low</button>
+    <input class="search-input" id="searchBox" type="text"
+           placeholder="🔍  Search IP / Domain / Hash / Protocol…" oninput="applyFilter()">
+  </div>
+
+  <!-- TABLE -->
+  {% if incident_count > 0 %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Protocol</th><th>Indicator</th><th>Risk</th><th>Score</th>
+          <th>Count</th><th>MITRE ID</th><th>Technique</th><th>Verdict</th><th>Reason</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyMain">
+        {% for inc in incidents %}
+        <tr class="inc-row"
+            data-risk="{{ inc.final_risk | default('Low') }}"
+            data-indicator="{{ inc.indicator | lower }}"
+            data-protocol="{{ inc.protocol | lower }}"
+            data-reason="{{ inc.reason | lower }}"
+            onclick="toggleDetail(this, {{ loop.index0 }})">
+
+          <td><span class="td-protocol">{{ inc.protocol }}</span></td>
+
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="{{ inc.indicator }}">
+            <span class="td-indicator">{{ inc.indicator }}</span>
+          </td>
+
+          <td><span class="badge b-{{ inc.final_risk | default('Low') }}">{{ inc.final_risk | default('Low') }}</span></td>
+
+          <td>
+            <span class="td-score" style="color:{%- if inc.final_score is defined and inc.final_score >= 90 %}#ff4060{%- elif inc.final_score is defined and inc.final_score >= 70 %}#ff7a45{%- elif inc.final_score is defined and inc.final_score >= 40 %}#ffd60a{%- else %}#30d158{%- endif %};">
+              {{ inc.final_score | default('–') }}
+            </span>
+          </td>
+
+          <td><span class="td-count">{{ inc.count | default(1) }}×</span></td>
+
+          <td><span class="td-mitre">{%- if inc.mitre %}{{ inc.mitre.technique_id | default('–') }}{%- else %}–{%- endif %}</span></td>
+
+          <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <span class="td-tech">{%- if inc.mitre %}{{ inc.mitre.technique | default('–') }}{%- else %}–{%- endif %}</span>
+          </td>
+
+          <td><span class="badge b-{{ inc.threat_verdict | default('Unknown') }}">{{ inc.threat_verdict | default('Unknown') }}</span></td>
+
+          <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="{{ inc.reason }}">
+            <span class="td-reason">{{ inc.reason }}</span>
+          </td>
+        </tr>
+
+        <!-- DETAIL ROW -->
+        <tr class="detail-row hidden" id="detail-{{ loop.index0 }}">
+          <td colspan="9">
+            <div class="detail-inner">
+
+              <!-- ── ROW 1: TI Overview ───────────────────────────────── -->
+              <div class="ti-overview">
+                <div class="ti-overview-header">
+                  <span style="font-size:13px;">🔍</span>
+                  <span class="ti-overview-title">Threat Intelligence Overview — {{ inc.indicator }}</span>
+                  {% if inc.threat_verdict == 'Malicious' %}
+                    <span class="ti-card-badge ti-mal" style="margin-left:auto;">⚠ MALICIOUS</span>
+                  {% else %}
+                    <span class="ti-card-badge ti-none" style="margin-left:auto;">{{ inc.threat_verdict | default('Unknown') }}</span>
+                  {% endif %}
+                </div>
+
+                <div class="ti-overview-grid">
+
+                  <!-- VirusTotal card -->
+                  <div class="ti-card">
+                    <div class="ti-card-header">
+                      <span class="ti-card-name" style="color:var(--cyan);">VirusTotal</span>
+                      {% if inc.virustotal and inc.virustotal.malicious is defined %}
+                        {% if inc.virustotal.malicious >= 5 %}
+                          <span class="ti-card-badge ti-mal">Malicious</span>
+                        {% elif inc.virustotal.malicious > 0 %}
+                          <span class="ti-card-badge" style="color:var(--yellow);border-color:rgba(255,214,10,.5);background:rgba(255,214,10,.1);">Suspicious</span>
+                        {% else %}
+                          <span class="ti-card-badge ti-clean">Clean</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="ti-card-badge ti-none">Not checked</span>
+                      {% endif %}
+                    </div>
+
+                    {% if inc.virustotal and inc.virustotal.malicious is defined %}
+                      <div class="ti-row">
+                        <span class="ti-row-label">Malicious vendors</span>
+                        <span class="ti-row-val" style="color:var(--red);">{{ inc.virustotal.malicious }}</span>
+                      </div>
+                      <div class="ti-row">
+                        <span class="ti-row-label">Suspicious vendors</span>
+                        <span class="ti-row-val" style="color:var(--yellow);">{{ inc.virustotal.suspicious | default(0) }}</span>
+                      </div>
+                      <div class="ti-row">
+                        <span class="ti-row-label">Indicator type</span>
+                        <span class="ti-row-val" style="color:#a0c8d8;">{{ 'IP' if inc.protocol in ['CONN','TCP','UDP'] else 'Domain/URL' }}</span>
+                      </div>
+                      <!-- Vendor hit visualizer -->
+                      <div class="ti-vendor-bar" style="margin-top:8px;">
+                        {% for i in range([inc.virustotal.malicious, 20]|min) %}
+                          <div class="ti-vendor-dot" style="background:#ff4060;box-shadow:0 0 3px #ff4060;"></div>
+                        {% endfor %}
+                        {% for i in range([inc.virustotal.suspicious | default(0), 10]|min) %}
+                          <div class="ti-vendor-dot" style="background:#ffd60a;"></div>
+                        {% endfor %}
+                      </div>
+                      <div style="color:var(--muted);font-size:9px;margin-top:4px;">● malicious  ● suspicious</div>
+                      <div class="mini-bar-wrap" style="margin-top:6px;">
+                        <div class="mini-bar" style="width:{{ [inc.virustotal.malicious * 5, 100]|min }}%;background:#ff4060;box-shadow:0 0 4px #ff4060;"></div>
+                      </div>
+                    {% else %}
+                      <div class="ti-not-checked">
+                        {% if inc.protocol in ['DNS'] %}
+                          Not an IP — VT checked for domains if medium/high severity
+                        {% else %}
+                          Skipped — low severity or already confirmed clean
+                        {% endif %}
+                      </div>
+                      <div class="ti-skipped-note">VT runs on: severity ≥ Medium, count ≥ 3, or Malicious verdict</div>
+                    {% endif %}
+                  </div>
+
+                  <!-- AbuseIPDB card -->
+                  <div class="ti-card">
+                    <div class="ti-card-header">
+                      <span class="ti-card-name" style="color:#ff7a45;">AbuseIPDB</span>
+                      {% if inc.abuseipdb and inc.abuseipdb.confidence is defined %}
+                        {% if inc.abuseipdb.confidence >= 75 %}
+                          <span class="ti-card-badge ti-mal">High Risk</span>
+                        {% elif inc.abuseipdb.confidence >= 25 %}
+                          <span class="ti-card-badge" style="color:var(--yellow);border-color:rgba(255,214,10,.5);background:rgba(255,214,10,.1);">Suspicious</span>
+                        {% else %}
+                          <span class="ti-card-badge ti-clean">Low Risk</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="ti-card-badge ti-none">Not checked</span>
+                      {% endif %}
+                    </div>
+
+                    {% if inc.abuseipdb and inc.abuseipdb.confidence is defined %}
+                      <div class="ti-row">
+                        <span class="ti-row-label">Abuse confidence</span>
+                        <span class="ti-row-val" style="color:{% if inc.abuseipdb.confidence >= 75 %}#ff4060{% elif inc.abuseipdb.confidence >= 25 %}#ffd60a{% else %}#30d158{% endif %};">{{ inc.abuseipdb.confidence }}%</span>
+                      </div>
+                      <div class="ti-row">
+                        <span class="ti-row-label">Total reports</span>
+                        <span class="ti-row-val" style="color:#ff7a45;">{{ inc.abuseipdb.total_reports | default(0) }}</span>
+                      </div>
+                      <div class="ti-row">
+                        <span class="ti-row-label">Indicator</span>
+                        <span class="ti-row-val" style="color:#a0c8d8;">IP Address</span>
+                      </div>
+                      <div class="mini-bar-wrap" style="margin-top:8px;">
+                        <div class="mini-bar" style="width:{{ inc.abuseipdb.confidence }}%;background:{% if inc.abuseipdb.confidence >= 75 %}#ff4060{% elif inc.abuseipdb.confidence >= 25 %}#ffd60a{% else %}#30d158{% endif %};"></div>
+                      </div>
+                    {% else %}
+                      <div class="ti-not-checked">
+                        {% if inc.protocol in ['DNS','HTTP','TLS'] %}
+                          Not an IP — AbuseIPDB only checks IP addresses
+                        {% else %}
+                          Skipped — low severity or private IP range
+                        {% endif %}
+                      </div>
+                      <div class="ti-skipped-note">AbuseIPDB runs on: IPs only, severity ≥ Medium or count ≥ 3</div>
+                    {% endif %}
+                  </div>
+
+                  <!-- AlienVault OTX card -->
+                  <div class="ti-card">
+                    <div class="ti-card-header">
+                      <span class="ti-card-name" style="color:var(--yellow);">AlienVault OTX</span>
+                      {% if inc.otx and inc.otx.pulse_count is defined %}
+                        {% if inc.otx.pulse_count >= 5 %}
+                          <span class="ti-card-badge ti-mal">Known Threat</span>
+                        {% elif inc.otx.pulse_count >= 1 %}
+                          <span class="ti-card-badge" style="color:var(--yellow);border-color:rgba(255,214,10,.5);background:rgba(255,214,10,.1);">Seen in feeds</span>
+                        {% else %}
+                          <span class="ti-card-badge ti-clean">No pulses</span>
+                        {% endif %}
+                      {% else %}
+                        <span class="ti-card-badge ti-none">Not checked</span>
+                      {% endif %}
+                    </div>
+
+                    {% if inc.otx and inc.otx.pulse_count is defined %}
+                      <div class="ti-row">
+                        <span class="ti-row-label">Pulse matches</span>
+                        <span class="ti-row-val" style="color:var(--yellow);">{{ inc.otx.pulse_count }}</span>
+                      </div>
+                      <div class="ti-row">
+                        <span class="ti-row-label">Threat feeds</span>
+                        <span class="ti-row-val" style="color:#a0c8d8;">{{ inc.otx.pulse_count }} community feeds</span>
+                      </div>
+                      <div class="ti-row">
+                        <span class="ti-row-label">Indicator</span>
+                        <span class="ti-row-val" style="color:#a0c8d8;">Domain</span>
+                      </div>
+                      <div class="mini-bar-wrap" style="margin-top:8px;">
+                        <div class="mini-bar" style="width:{{ [inc.otx.pulse_count * 10, 100]|min }}%;background:#ffd60a;box-shadow:0 0 4px #ffd60a;"></div>
+                      </div>
+                    {% else %}
+                      <div class="ti-not-checked">
+                        {% if inc.protocol in ['CONN','TLS'] %}
+                          Not a domain — OTX only checks domain indicators
+                        {% else %}
+                          Skipped — low severity or IP indicator
+                        {% endif %}
+                      </div>
+                      <div class="ti-skipped-note">OTX runs on: domains only, severity ≥ Medium or count ≥ 3</div>
+                    {% endif %}
+                  </div>
+
+                </div><!-- end ti-overview-grid -->
+
+                <!-- TI verdict summary bar -->
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(13,48,64,.6);display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+                  <div style="color:#5a8a9a;font-size:10px;letter-spacing:1px;">TI VERDICT:</div>
+                  {% if inc.threat_verdict == 'Malicious' %}
+                    <div style="color:var(--red);font-size:12px;font-weight:700;">⚠ {{ inc.threat_reason | default('Matched threat feed') }}</div>
+                  {% else %}
+                    <div style="color:var(--muted);font-size:11px;">{{ inc.threat_reason | default('No local feed match') }}</div>
+                  {% endif %}
+                  <div style="margin-left:auto;display:flex;gap:16px;">
+                    <div style="font-size:10px;color:#5a8a9a;">TIP SCORE: <span style="color:var(--green);font-family:'Inter',sans-serif;font-weight:700;">{{ inc.tip.score | default(0) if inc.tip else '—' }}</span>/100</div>
+                    <div style="font-size:10px;color:#5a8a9a;">SIGNALS: <span style="color:#90b8c8;">{{ inc.tip.signals | join(' · ') if inc.tip and inc.tip.signals else '—' }}</span></div>
+                  </div>
+                </div>
+              </div><!-- end ti-overview -->
+
+              <!-- ── ROW 2: MITRE + Timeline ──────────────────────────── -->
+              <div class="detail-row-grid">
+
+                <div class="detail-box">
+                  <div class="detail-label">MITRE ATT&amp;CK</div>
+                  {% if inc.mitre %}
+                    <div style="color:var(--yellow);font-size:17px;font-weight:700;letter-spacing:1px;">{{ inc.mitre.technique_id | default('–') }}</div>
+                    <div style="color:#d8eef8;font-size:12px;margin-top:5px;">{{ inc.mitre.technique | default('') }}</div>
+                    <div style="color:var(--muted);font-size:10px;margin-top:3px;letter-spacing:.5px;">Tactic: {{ inc.mitre.tactic | default('Unknown') }}</div>
+                    {% if inc.mitre.confidence is defined and inc.mitre.confidence != 'None' %}
+                      <div style="margin-top:6px;">
+                        <span style="font-size:9px;padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:1px;
+                          {% if inc.mitre.confidence == 'High' %}color:var(--green);background:rgba(48,209,88,.1);border:1px solid rgba(48,209,88,.4);
+                          {% elif inc.mitre.confidence == 'Medium' %}color:var(--yellow);background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.4);
+                          {% else %}color:var(--muted);background:rgba(106,154,170,.1);border:1px solid rgba(106,154,170,.3);{% endif %}">
+                          {{ inc.mitre.confidence | upper }} CONFIDENCE
+                        </span>
+                      </div>
+                    {% endif %}
+                  {% else %}
+                    <div style="color:var(--muted);font-size:12px;margin-top:6px;">Not mapped</div>
+                  {% endif %}
+                </div>
+
+                <div class="detail-box">
+                  <div class="detail-label">Timeline &amp; Context</div>
+                  <div style="color:var(--cyan);font-size:11px;line-height:2.1;">
+                    <span style="color:var(--muted);font-size:10px;letter-spacing:1px;">FIRST SEEN</span><br>
+                    {{ inc.first_seen | default('–') }}<br>
+                    <span style="color:var(--muted);font-size:10px;letter-spacing:1px;">LAST SEEN</span><br>
+                    {{ inc.last_seen | default('–') }}
+                  </div>
+                  <div style="color:var(--muted);font-size:10px;margin-top:6px;letter-spacing:.5px;">
+                    Count: <strong style="color:var(--text);">{{ inc.count | default(1) }}×</strong>
+                    &nbsp;|&nbsp; Proto: <strong style="color:#00ddff;">{{ inc.protocol }}</strong>
+                    &nbsp;|&nbsp; Source: <strong style="color:#a0c8d8;">{{ inc.threat_source | default('Local Feed') }}</strong>
+                  </div>
+                </div>
+
+                <div class="detail-box">
+                  <div class="detail-label">Risk Explanation</div>
+                  <div style="color:#90b8c8;font-size:11px;line-height:1.7;margin-top:4px;">
+                    {{ inc.risk_explanation | default('No explanation available.') }}
+                  </div>
+                  {% if inc.final_score is defined %}
+                    <div style="margin-top:8px;">
+                      <div style="color:#5a8a9a;font-size:9px;letter-spacing:1px;margin-bottom:4px;">FINAL RISK SCORE</div>
+                      <div class="mini-bar-wrap">
+                        <div class="mini-bar" style="width:{{ inc.final_score }}%;
+                          background:{% if inc.final_score >= 90 %}#ff4060{% elif inc.final_score >= 70 %}#ff7a45{% elif inc.final_score >= 40 %}#ffd60a{% else %}#30d158{% endif %};"></div>
+                      </div>
+                      <div style="color:var(--muted);font-size:10px;margin-top:3px;">{{ inc.final_score }}/100</div>
+                    </div>
+                  {% endif %}
+                </div>
+
+              </div><!-- end detail-row-grid -->
+
+              <!-- closing detail-row-grid is moved above, remove duplicate -->
+
+              <!-- ── ROW 3: AI Analysis (Ollama) ─────────────────────────── -->
+              {% set ai = inc.ai_analysis %}
+              {% if ai and not ai.skipped and not ai.error %}
+              <div class="ai-panel">
+                <div class="ai-panel-header">
+                  <span style="font-size:15px;">🤖</span>
+                  <span class="ai-panel-title">AI Threat Analysis — Groq AI</span>
+                  {% if ai.confidence == 'High' %}
+                    <span class="ai-panel-badge ai-badge-high">HIGH CONFIDENCE</span>
+                  {% elif ai.confidence == 'Medium' %}
+                    <span class="ai-panel-badge ai-badge-medium">MEDIUM CONFIDENCE</span>
+                  {% else %}
+                    <span class="ai-panel-badge ai-badge-low">LOW CONFIDENCE</span>
+                  {% endif %}
+                </div>
+                <div class="ai-grid">
+                  <div class="ai-block">
+                    <div class="ai-block-label">🔍 Threat Summary</div>
+                    <div class="ai-block-text">{{ ai.threat_summary }}</div>
+                  </div>
+                  <div class="ai-block">
+                    <div class="ai-block-label">🎯 Attack Hypothesis</div>
+                    <div class="ai-block-text">{{ ai.attack_hypothesis }}</div>
+                  </div>
+                  <div class="ai-block">
+                    <div class="ai-block-label">🛡️ Recommended Actions</div>
+                    <ul class="ai-action-list">
+                      {% for step in ai.recommended_action.split('|') %}
+                        <li><span class="ai-action-num">{{ loop.index }}.</span><span>{{ step.strip() }}</span></li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              {% elif ai and (ai.skipped or ai.error) %}
+              <div style="padding:8px 12px;background:rgba(139,149,176,.06);border:1px solid rgba(139,149,176,.2);border-radius:8px;color:var(--muted);font-size:11px;">
+                🤖 <strong>AI Analysis:</strong> {{ ai.threat_summary }}
+              </div>
+              {% endif %}
+
+                 
+
+                  <div id="fw-msg-{{ loop.index0 }}" style="display:none;" class="fw-msg"></div>
+                </div>
+
+              </div><!-- end detail-row-grid -->
+
+            </div><!-- end detail-inner -->
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="table-wrap">
+    <div class="empty">
+      <div class="empty-icon">📭</div>
+      <div class="empty-title">NO INCIDENTS YET</div>
+      <div class="empty-sub">Upload a PCAP file to trigger the full SOC analysis pipeline.</div>
+      <a href="/" style="display:inline-block;margin-top:20px;padding:11px 32px;background:rgba(0,255,157,.1);border:1px solid var(--green);border-radius:7px;color:var(--green);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;">
+        📦 UPLOAD PCAP
+      </a>
+    </div>
+  </div>
+  {% endif %}
+</main>
+
+<footer>
+  <span>PCAP-BASED SOC &amp; VAPT FRAMEWORK v2.0 — FOR AUTHORIZED USE ONLY</span>
+  <span>SHA-256 Integrity · WSL-Zeek · 104 NBAD/NABD Rules · MITRE ATT&amp;CK Mapped</span>
+</footer>
+
+<script>
+// Matrix
+const cvs=document.getElementById('matrix'),cx=cvs.getContext('2d');
+function rsz(){cvs.width=window.innerWidth;cvs.height=window.innerHeight;}
+rsz();window.addEventListener('resize',rsz);
+const CH='01アイウエカキクサシスタ';let dp=Array(Math.floor(cvs.width/14)).fill(1);
+setInterval(()=>{cx.fillStyle='rgba(0,4,10,.07)';cx.fillRect(0,0,cvs.width,cvs.height);cx.font='11px monospace';dp.forEach((y,i)=>{cx.fillStyle=i%3?'#001a0e':'#00ff9d';cx.fillText(CH[Math.floor(Math.random()*CH.length)],i*14,y*14);if(y*14>cvs.height&&Math.random()>.975)dp[i]=0;dp[i]++;});},65);
+
+// Clock
+function tick(){const n=new Date();document.getElementById('clock').textContent=n.toLocaleTimeString();document.getElementById('datestamp').textContent=n.toLocaleDateString('en-GB')+' UTC';}
+tick();setInterval(tick,1000);
+
+// Filter
+let cur='All';
+const RC={All:'#00ff9d',Critical:'#ff4060',High:'#ff7a45',Medium:'var(--yellow)',Low:'var(--green)'};
+function setFilter(r){
+  cur=r;
+  Object.keys(RC).forEach(k=>{
+    const b=document.getElementById('f-'+k);if(!b)return;
+    const c=RC[k];
+    b.style.cssText=k===r?`border:1px solid ${c};color:${c};background:${c}18;`:`border:1px solid rgba(255,255,255,.1);color:#6a8a9a;background:transparent;`;
+  });
+  applyFilter();
+}
+setFilter('All');
+
+function applyFilter(){
+  const q=document.getElementById('searchBox').value.toLowerCase();
+  document.querySelectorAll('.inc-row').forEach(row=>{
+    const ok=(cur==='All'||row.dataset.risk===cur)&&
+      (!q||(row.dataset.indicator||'').includes(q)||(row.dataset.protocol||'').includes(q)||(row.dataset.reason||'').includes(q));
+    const det=row.nextElementSibling;
+    row.style.display=ok?'':'none';
+    if(!ok&&det&&det.classList.contains('detail-row')){det.classList.add('hidden');det.style.display='none';}
+  });
+}
+
+// Row expand
+function toggleDetail(row,idx){
+  const det=document.getElementById('detail-'+idx);if(!det)return;
+  const wasHidden=det.classList.contains('hidden');
+  document.querySelectorAll('.detail-row').forEach(d=>{d.classList.add('hidden');d.style.display='none';});
+  document.querySelectorAll('.inc-row').forEach(r=>r.classList.remove('expanded'));
+  if(wasHidden){det.classList.remove('hidden');det.style.display='';row.classList.add('expanded');}
+}
+
+// Charts
+{% if incident_count > 0 %}
+Chart.defaults.color='#6a9aaa';
+Chart.defaults.font.family="'Inter', monospace";
+new Chart(document.getElementById('sevChart'),{
+  type:'doughnut',
+  data:{labels:['Critical','High','Medium','Low'],datasets:[{
+    data:[{{ severity_counts.Critical }},{{ severity_counts.High }},{{ severity_counts.Medium }},{{ severity_counts.Low }}],
+    backgroundColor:['rgba(255,64,96,.55)','rgba(255,122,69,.55)','rgba(255,214,10,.45)','rgba(48,209,88,.45)'],
+    borderColor:['#ff4060','#ff7a45','var(--yellow)','var(--green)'],borderWidth:2,hoverOffset:4
+  }]},
+  options:{plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:8,color:'#8abac8'}}},layout:{padding:2}}
+});
+new Chart(document.getElementById('protoChart'),{
+  type:'bar',
+  data:{
+    labels:[{% for k,v in protocol_counts.items() %}"{{ k }}",{% endfor %}],
+    datasets:[{label:'Incidents',data:[{% for k,v in protocol_counts.items() %}{{ v }},{% endfor %}],
+      backgroundColor:['rgba(0,204,255,.5)','rgba(0,255,157,.5)','rgba(255,214,10,.45)','rgba(255,122,69,.5)','rgba(255,64,96,.5)','rgba(180,100,255,.45)'],
+      borderColor:['var(--cyan)','#00ff9d','var(--yellow)','#ff7a45','#ff4060','#b464ff'],
+      borderWidth:2,borderRadius:4
+    }]
+  },
+  options:{plugins:{legend:{display:false}},scales:{
+    x:{ticks:{font:{size:12},color:'#8abac8'},grid:{color:'rgba(13,48,64,.5)'}},
+    y:{ticks:{font:{size:11},color:'#8abac8'},grid:{color:'rgba(13,48,64,.5)'},beginAtZero:true}
+  }}
+});
+// ── Firewall helpers ──────────────────────────────────────────────────────────
+function fwMsg(idx, text, type){
+  const el = document.getElementById('fw-msg-'+idx);
+  if(!el) return;
+  el.textContent = text;
+  el.className = 'fw-msg fw-msg-'+type;
+  el.style.display = 'block';
+  if(type==='ok'||type==='inf') setTimeout(()=>{ el.style.display='none'; }, 5000);
+}
+
+function fwSetDot(idx, state){
+  const d = document.getElementById('fw-dot-'+idx);
+  if(!d) return;
+  d.className = 'fw-status-dot '+(state==='online'?'fw-dot-online':state==='offline'?'fw-dot-offline':'fw-dot-unknown');
+  const t = document.getElementById('fw-status-txt-'+idx);
+  if(t) t.textContent = state==='online'?'Connected':state==='offline'?'Unreachable':'Unknown';
+}
+
+function fwBlock(indicator, reason, severity, idx){
+  const btn = document.getElementById('fw-block-btn-'+idx);
+  if(btn) btn.disabled = true;
+  fwMsg(idx, '⏳ Sending block command…', 'inf');
+
+  fetch('/firewall/block', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({indicator, reason, severity})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.status==='blocked'){
+      fwMsg(idx, '✅ ' + indicator + ' blocked on OPNsense', 'ok');
+      fwSetDot(idx, 'online');
+    } else if(d.status==='already_blocked'){
+      fwMsg(idx, '⚠ Already blocked: ' + indicator, 'inf');
+    } else {
+      fwMsg(idx, '✗ ' + (d.message||'Block failed'), 'err');
+      if(btn) btn.disabled = false;
+    }
+  })
+  .catch(()=>{ fwMsg(idx, '✗ Network error — is the server running?', 'err'); if(btn) btn.disabled=false; });
+}
+
+function fwUnblock(indicator, idx){
+  const btn = document.getElementById('fw-unblock-btn-'+idx);
+  if(btn) btn.disabled = true;
+  fwMsg(idx, '⏳ Sending unblock command…', 'inf');
+
+  fetch('/firewall/unblock', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({indicator})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.status==='unblocked'){
+      fwMsg(idx, '✅ ' + indicator + ' unblocked', 'ok');
+      const blockBtn = document.getElementById('fw-block-btn-'+idx);
+      if(blockBtn) blockBtn.disabled = false;
+    } else if(d.status==='not_found'){
+      fwMsg(idx, '⚠ Not currently blocked', 'inf');
+    } else {
+      fwMsg(idx, '✗ ' + (d.message||'Unblock failed'), 'err');
+    }
+    if(btn) btn.disabled = false;
+  })
+  .catch(()=>{ fwMsg(idx, '✗ Network error', 'err'); if(btn) btn.disabled=false; });
+}
+
+// Check firewall connectivity on page load and update all dots
+fetch('/firewall/status')
+  .then(r=>r.json())
+  .then(d=>{
+    const state = d.status==='online'?'online':'offline';
+    document.querySelectorAll('.fw-status-dot').forEach(dot=>{
+      dot.className='fw-status-dot '+(state==='online'?'fw-dot-online':'fw-dot-offline');
+      dot.title = state==='online'?'OPNsense Connected':'OPNsense Unreachable';
+    });
+    document.querySelectorAll('[id^="fw-status-txt-"]').forEach(el=>{
+      el.textContent = state==='online'?'Connected':'Unreachable';
+      el.style.color = state==='online'?'var(--green)':'#ff4060';
+    });
+  })
+  .catch(()=>{
+    document.querySelectorAll('.fw-status-dot').forEach(dot=>{ dot.className='fw-status-dot fw-dot-offline'; dot.title='OPNsense Unreachable'; });
+  });
+{% endif %}
+</script>

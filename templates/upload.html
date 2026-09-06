@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOC-VA Framework — Upload PCAP</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --accent:  #6979f8;
+    --accent2: #5c6bc0;
+    --green:   #38a169;
+    --cyan:    #3182ce;
+    --red:     #e53e3e;
+    --orange:  #ed8936;
+    --yellow:  #d69e2e;
+    --purple:  #805ad5;
+    --bg:      #eef0f9;
+    --card:    #ffffff;
+    --border:  #e8eaf0;
+    --text:    #1a1f36;
+    --muted:   #8b95b0;
+    --shadow:  0 2px 12px rgba(105,121,248,.08), 0 1px 3px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', monospace; min-height: 100vh; overflow-x: hidden; }
+
+  /* Matrix canvas */
+  #matrix { display:none; }
+
+  /* Nav */
+  nav { position: relative; z-index: 10; background: #ffffff; border-bottom: 1px solid var(--border); box-shadow: 0 1px 4px rgba(105,121,248,.08); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; border-radius: 10px; background: rgba(105,121,248,.1); border: 1.5px solid rgba(105,121,248,.3); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .logo-text { font-family: 'Inter', sans-serif; color: var(--text); font-size: 14px; font-weight: 700; letter-spacing: 0; }
+  .logo-sub  { color: var(--muted); font-size: 9px; letter-spacing: 1px; }
+  .nav-links { display: flex; gap: 6px; }
+  .nav-btn { padding: 7px 18px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: #8a9bb0; font-family: 'Inter', monospace; font-size: 11px; font-weight: 700; letter-spacing: 1px; cursor: pointer; text-decoration: none; display: inline-block; transition: all .2s; }
+  .nav-btn:hover, .nav-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(105,121,248,.06); font-weight: 600; }
+  .nav-btn.vapt { border-color: var(--border); }
+  .nav-btn.vapt:hover { border-color: var(--accent); color: var(--accent); background: rgba(105,121,248,.06); }
+
+  /* Main */
+  main { position: relative; z-index: 5; max-width: 860px; margin: 0 auto; padding: 60px 24px; }
+  .hero { text-align: center; margin-bottom: 48px; }
+  .hero h1 { font-family: 'Inter', sans-serif; font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: 0; margin-bottom: 10px; }
+  .hero p  { color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+
+  /* Upload box */
+  .upload-zone { border: 2px dashed rgba(105,121,248,.3); border-radius: 16px; padding: 60px 40px; text-align: center; background: rgba(255,255,255,.9); cursor: pointer; transition: all .3s; position: relative; overflow: hidden; box-shadow: 0 2px 12px rgba(105,121,248,.08); }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(105,121,248,.03); box-shadow: 0 4px 20px rgba(105,121,248,.15); }
+  .upload-zone .upload-icon { font-size: 56px; margin-bottom: 16px; }
+  .upload-zone h2 { color: var(--text); font-size: 18px; font-weight: 700; letter-spacing: 0; margin-bottom: 8px; }
+  .upload-zone p  { color: var(--muted); font-size: 12px; }
+  .btn-upload { margin-top: 24px; display: inline-block; padding: 12px 32px; background: rgba(0,255,157,.1); border: 1px solid var(--green); border-radius: 6px; color: var(--green); font-family: 'Inter', monospace; font-size: 13px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: all .2s; }
+  .btn-upload:hover { background: #5a6be0; box-shadow: 0 4px 14px rgba(105,121,248,.45); }
+  input[type=file] { display: none; }
+  .file-hint { margin-top: 12px; color: #2a4a5a; font-size: 11px; }
+
+  /* Feature grid */
+  .features { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-top: 40px; }
+  .feat { background: #ffffff; border: 1px solid var(--border); border-radius: 16px; padding: 16px; transition: all .2s; box-shadow: 0 2px 8px rgba(105,121,248,.06); }
+  .feat:hover { border-color: rgba(105,121,248,.35); box-shadow: 0 4px 16px rgba(105,121,248,.12); }
+  .feat-icon { font-size: 22px; margin-bottom: 8px; }
+  .feat-title { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .5px; margin-bottom: 4px; }
+  .feat-desc  { color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+  /* Flash messages */
+  .flash-error   { background: rgba(229,62,62,.08); border: 1px solid rgba(229,62,62,.3); color: var(--red); padding: 10px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; }
+  .flash-success { background: rgba(56,161,105,.08); border: 1px solid rgba(56,161,105,.3); color: var(--green); padding: 10px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 12px; }
+
+  /* Pipeline preview */
+  .pipeline { display: flex; gap: 0; align-items: center; justify-content: center; margin-top: 36px; flex-wrap: wrap; gap: 4px; }
+  .pipe-step { background: rgba(105,121,248,.07); border: 1px solid rgba(105,121,248,.15); border-radius: 6px; padding: 5px 10px; font-size: 11px; color: var(--accent); font-weight: 500; }
+  .pipe-arrow { color: var(--muted); font-size: 12px; }
+
+  footer { position: relative; z-index: 5; border-top: 1px solid var(--border); padding: 14px 32px; background: #ffffff; display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 40px; }
+</style>
+</head>
+<body>
+<canvas id="matrix"></canvas>
+
+<nav>
+  <div class="logo">
+    <div class="logo-icon">🛡️</div>
+    <div>
+      <div class="logo-text">SECURITY ANALYTICS FRAMEWORK</div>
+      <div class="logo-sub">THREAT DETECTION & SECURITY ASSESSMENT</div>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="/" class="nav-btn active">🕵️ SOC MODULE</a>
+    <a href="/vapt" class="nav-btn vapt">🔬 VA MODULE</a>
+    <a href="/dashboard" class="nav-btn">📊 DASHBOARD</a>
+    <a href="/live" class="nav-btn" style="border-color:rgba(229,62,62,.45);color:#ff7a45;">🔴 LIVE TRAFFIC</a>
+  </div>
+</nav>
+
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash-{{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="hero">
+    <h1>Upload PCAP File</h1>
+    <p>Drop a network capture to trigger the full SOC analysis pipeline</p>
+  </div>
+
+  <form method="POST" action="/upload-ui" enctype="multipart/form-data" id="uploadForm">
+    <div class="upload-zone" id="dropZone" onclick="document.getElementById('pcapInput').click()">
+      <div class="upload-icon">📦</div>
+      <h2>DROP PCAP FILE HERE</h2>
+      <p>Supports .pcap / .pcapng — Max 100 MB</p>
+      <div class="btn-upload">BROWSE FILES</div>
+      <div class="file-hint" id="fileHint">No file selected</div>
+      <input type="file" name="pcap" id="pcapInput" accept=".pcap,.pcapng">
+    </div>
+
+    <div style="text-align:center; margin-top:20px;">
+      <button type="submit" class="btn-upload" style="font-size:14px; padding:14px 48px; margin-top:0;">
+        ▶ &nbsp;UPLOAD &amp; ANALYZE
+      </button>
+    </div>
+  </form>
+
+  <div class="pipeline">
+    {% for step in ["PCAP Upload","Zeek Logs","Alert Extraction","Severity Tag","Deduplication","Local TI","VirusTotal","OTX","AbuseIPDB","TIP Score","MITRE Map"] %}
+      <div class="pipe-step">{{ step }}</div>
+      {% if not loop.last %}<div class="pipe-arrow">›</div>{% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="features">
+    <div class="feat"><div class="feat-icon">🔬</div><div class="feat-title">ZEEK LOG PARSER</div><div class="feat-desc">Converts raw PCAP into semantic protocol logs: DNS, HTTP, SSL, CONN, FTP, SMTP</div></div>
+    <div class="feat"><div class="feat-icon">🕵️</div><div class="feat-title">NBAD / NABD ENGINE</div><div class="feat-desc">104 behavioral detection rules. C2 beaconing, DGA, DNS tunneling, data exfil, lateral movement</div></div>
+    <div class="feat"><div class="feat-icon">🌐</div><div class="feat-title">THREAT INTEL FUSION</div><div class="feat-desc">Local feeds + VirusTotal + AlienVault OTX + AbuseIPDB with smart caching</div></div>
+    <div class="feat"><div class="feat-icon">⚡</div><div class="feat-title">RISK FUSION ENGINE</div><div class="feat-desc">Multi-signal scoring: behavioral severity + TI confidence + frequency boost</div></div>
+    <div class="feat"><div class="feat-icon">🎯</div><div class="feat-title">MITRE ATT&CK MAP</div><div class="feat-desc">Every incident linked to MITRE tactic, technique ID, and sub-technique</div></div>
+    <div class="feat"><div class="feat-icon">📊</div><div class="feat-title">SOC DASHBOARD</div><div class="feat-desc">Incident table with filters, CSV/PDF export, severity charts</div></div>
+  </div>
+</main>
+
+<footer>
+  <span>PCAP-BASED SOC & VAPT FRAMEWORK v2.0 — FOR AUTHORIZED USE ONLY</span>
+  <span>SHA-256 Integrity · WSL-Zeek Integration · 104 NBAD/NABD Rules · MITRE ATT&CK Mapped</span>
+</footer>
+
+<script>
+// Matrix rain
+const canvas = document.getElementById('matrix');
+const ctx = canvas.getContext('2d');
+function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
+resize(); window.addEventListener('resize', resize);
+const chars = '01アイウエオカキクサシスタチツ'; let drops=[];
+function init(){ drops=Array(Math.floor(canvas.width/14)).fill(1); }
+init();
+setInterval(()=>{
+  ctx.fillStyle='rgba(0,5,10,.06)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.font='12px monospace';
+  drops.forEach((y,i)=>{ ctx.fillStyle=i%3?'#003322':'#00ff9d'; ctx.fillText(chars[Math.floor(Math.random()*chars.length)],i*14,y*14); if(y*14>canvas.height&&Math.random()>.975)drops[i]=0; drops[i]++; });
+},55);
+
+// Drag & drop
+const zone = document.getElementById('dropZone');
+const input = document.getElementById('pcapInput');
+zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', ()=>zone.classList.remove('drag'));
+zone.addEventListener('drop', e=>{
+  e.preventDefault(); zone.classList.remove('drag');
+  const f=e.dataTransfer.files[0]; if(f){ input.files=e.dataTransfer.files; document.getElementById('fileHint').textContent='📎 '+f.name+' ('+Math.round(f.size/1024/1024*100)/100+' MB)'; }
+});
+input.addEventListener('change', ()=>{ if(input.files[0]) document.getElementById('fileHint').textContent='📎 '+input.files[0].name; });
+</script>
+</body>
+</html>
